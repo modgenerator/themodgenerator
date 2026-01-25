@@ -10,8 +10,8 @@ on:
 
 env:
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  REGION: us-central1
-  REPO: us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/themodgenerator/builder
+  REGION: europe-west2
+  REPO: europe-west2-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/themodgenerator/builder
 
 jobs:
   build-and-update-job:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Build Builder image
         run: |
-          docker build -f apps/builder/Dockerfile -t ${{ env.REPO }}:${{ github.sha }} -t ${{ env.REPO }}:latest .
+          docker build . -f apps/builder/Dockerfile -t ${{ env.REPO }}:${{ github.sha }} -t ${{ env.REPO }}:latest
 
       - name: Push Builder image
         run: |

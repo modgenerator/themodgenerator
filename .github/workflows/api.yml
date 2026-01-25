@@ -36,23 +36,30 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
+      - name: Sanitize env (strip Windows CR)
+        run: |
+          echo "REPO=$(printf '%s' '${{ env.REPO }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "PROJECT_ID=$(printf '%s' '${{ env.PROJECT_ID }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "REGION=$(printf '%s' '${{ env.REGION }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "GCS_BUCKET=$(printf '%s' '${{ vars.GCS_BUCKET }}' | tr -d '\r\n')" >> $GITHUB_ENV
+
       - name: Build API image
         run: |
-          docker build . -f apps/api/Dockerfile -t ${{ env.REPO }}:${{ github.sha }} -t ${{ env.REPO }}:latest
+          docker build . -f apps/api/Dockerfile -t "${{ env.REPO }}:${{ github.sha }}" -t "${{ env.REPO }}:latest"
 
       - name: Push API image
         run: |
-          docker push ${{ env.REPO }}:${{ github.sha }}
-          docker push ${{ env.REPO }}:latest
+          docker push "${{ env.REPO }}:${{ github.sha }}"
+          docker push "${{ env.REPO }}:latest"
 
       - name: Deploy to Cloud Run (API)
         run: |
           gcloud run deploy modgen-api \
-            --image=${{ env.REPO }}:${{ github.sha }} \
-            --region=${{ env.REGION }} \
+            --image="${{ env.REPO }}:${{ github.sha }}" \
+            --region="${{ env.REGION }}" \
             --platform=managed \
-            --set-env-vars="GCS_BUCKET=${{ vars.GCS_BUCKET }},GCP_PROJECT=${{ env.PROJECT_ID }},CLOUD_RUN_REGION=${{ env.REGION }},BUILDER_JOB_NAME=mod-builder" \
+            --set-env-vars="GCS_BUCKET=${{ env.GCS_BUCKET }},GCP_PROJECT=${{ env.PROJECT_ID }},CLOUD_RUN_REGION=${{ env.REGION }},BUILDER_JOB_NAME=mod-builder" \
             --set-secrets="DATABASE_URL=database-url:latest" \
             --service-account="modgen-api@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
             --allow-unauthenticated \
-            --project=${{ env.PROJECT_ID }}
+            --project="${{ env.PROJECT_ID }}"

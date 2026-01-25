@@ -36,18 +36,24 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
+      - name: Sanitize env (strip Windows CR)
+        run: |
+          echo "REPO=$(printf '%s' '${{ env.REPO }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "PROJECT_ID=$(printf '%s' '${{ env.PROJECT_ID }}' | tr -d '\r\n')" >> $GITHUB_ENV
+          echo "REGION=$(printf '%s' '${{ env.REGION }}' | tr -d '\r\n')" >> $GITHUB_ENV
+
       - name: Build Builder image
         run: |
-          docker build . -f apps/builder/Dockerfile -t ${{ env.REPO }}:${{ github.sha }} -t ${{ env.REPO }}:latest
+          docker build . -f apps/builder/Dockerfile -t "${{ env.REPO }}:${{ github.sha }}" -t "${{ env.REPO }}:latest"
 
       - name: Push Builder image
         run: |
-          docker push ${{ env.REPO }}:${{ github.sha }}
-          docker push ${{ env.REPO }}:latest
+          docker push "${{ env.REPO }}:${{ github.sha }}"
+          docker push "${{ env.REPO }}:latest"
 
       - name: Update Cloud Run Job (Builder)
         run: |
           gcloud run jobs update mod-builder \
-            --image=${{ env.REPO }}:${{ github.sha }} \
-            --region=${{ env.REGION }} \
-            --project=${{ env.PROJECT_ID }}
+            --image="${{ env.REPO }}:${{ github.sha }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ env.PROJECT_ID }}"

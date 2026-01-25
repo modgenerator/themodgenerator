@@ -1,0 +1,14 @@
+{
+  "name": "@themodgenerator/spec",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').copyFileSync('src/schema.json','dist/schema.json')\"",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "~5.3.3"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "themodgenerator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fabric 1.21.1 mod generator — API + Builder monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,js,json,yml,yaml,md}\"",
+    "db:migrate": "node packages/db/scripts/migrate.js",
+    "api:dev": "npm run dev -w apps/api",
+    "builder:dev": "npm run dev -w apps/builder"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "typescript": "~5.3.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

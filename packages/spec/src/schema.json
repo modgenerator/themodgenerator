@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://themodgenerator.dev/schemas/ModSpecV1.json",
+  "title": "ModSpecV1",
+  "description": "Canonical mod specification for Fabric 1.21.1",
+  "type": "object",
+  "required": ["schemaVersion", "minecraftVersion", "loader", "modId", "modName", "features"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "minecraftVersion": { "const": "1.21.1" },
+    "loader": { "const": "fabric" },
+    "modId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "modName": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["hello-world", "ore", "ingot", "tools", "mob-drop", "structure-spawn", "advancement"]
+      }
+    },
+    "items": { "type": "array", "items": { "$ref": "#/definitions/ModItem" } },
+    "blocks": { "type": "array", "items": { "$ref": "#/definitions/ModBlock" } },
+    "ores": { "type": "array", "items": { "$ref": "#/definitions/ModOre" } },
+    "recipes": { "type": "array", "items": { "$ref": "#/definitions/ModRecipe" } },
+    "loot": { "type": "array", "items": { "$ref": "#/definitions/ModLoot" } },
+    "assetsRequired": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/AssetRef" }
+    },
+    "constraintsReport": { "$ref": "#/definitions/ConstraintsReport" }
+  },
+  "definitions": {
+    "ModItem": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "translationKey": { "type": "string" },
+        "texturePath": { "type": "string" }
+      }
+    },
+    "ModBlock": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "texturePath": { "type": "string" }
+      }
+    },
+    "ModOre": {
+      "type": "object",
+      "required": ["id", "blockId"],
+      "properties": {
+        "id": { "type": "string" },
+        "blockId": { "type": "string" },
+        "lootTable": { "type": "string" },
+        "recipeId": { "type": "string" }
+      }
+    },
+    "ModRecipe": {
+      "type": "object",
+      "required": ["id", "type", "result"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "result": { "type": "object", "properties": { "id": { "type": "string" }, "count": { "type": "integer" } }
+      }
+    },
+    "ModLoot": {
+      "type": "object",
+      "required": ["id", "type", "targetId"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "enum": ["block", "entity", "chest"] },
+        "targetId": { "type": "string" }
+      }
+    },
+    "AssetRef": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "expectedWidth": { "type": "integer" },
+        "expectedHeight": { "type": "integer" }
+      }
+    },
+    "ConstraintsReport": {
+      "type": "object",
+      "properties": {
+        "allowed": { "type": "array", "items": { "type": "string" } },
+        "rejected": { "type": "array", "items": { "type": "string" } },
+        "approximations": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

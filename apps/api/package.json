@@ -1,0 +1,25 @@
+{
+  "name": "@themodgenerator/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@themodgenerator/db": "*",
+    "@themodgenerator/gcp": "*",
+    "@themodgenerator/spec": "*",
+    "@themodgenerator/validator": "*",
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "google-auth-library": "^9.14.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "~5.3.3"
+  }
+}

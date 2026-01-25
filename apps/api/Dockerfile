@@ -5,7 +5,10 @@ COPY package.json package-lock.json* ./
 COPY packages packages
 COPY apps apps
 COPY tsconfig.base.json ./
-RUN npm install && npm run build -w @themodgenerator/spec -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp && npm run build -w apps/api
+RUN npm install && \
+    npm run build -w @themodgenerator/spec && \
+    npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp && \
+    npm run build -w @themodgenerator/api
 
 FROM node:20-bookworm-slim
 WORKDIR /app

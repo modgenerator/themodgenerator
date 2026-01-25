@@ -13,7 +13,10 @@ COPY package.json package-lock.json* ./
 COPY packages packages
 COPY apps apps
 COPY tsconfig.base.json ./
-RUN npm install && npm run build -w @themodgenerator/spec -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp -w @themodgenerator/generator && npm run build -w apps/builder
+RUN npm install && \
+    npm run build -w @themodgenerator/spec && \
+    npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp -w @themodgenerator/generator && \
+    npm run build -w @themodgenerator/builder
 
 FROM deps
 WORKDIR /app

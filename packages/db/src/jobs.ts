@@ -52,7 +52,7 @@ export async function insertJob(
   pool: Pool,
   input: InsertJobInput
 ): Promise<JobRow> {
-  const res = await pool.query<JobRow>(
+  const res = await pool.query<Record<string, unknown>>(
     `INSERT INTO jobs (
       id, user_id, parent_id, prompt, status, rejection_reason,
       spec_json, artifact_path, log_path
@@ -85,7 +85,7 @@ export async function getJobById(
     [id]
   );
   if (res.rows.length === 0) return null;
-  return mapRow(res.rows[0]);
+  return mapRow(res.rows[0] as Record<string, unknown>);
 }
 
 export async function updateJob(

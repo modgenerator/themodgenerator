@@ -2,10 +2,11 @@
   "name": "@themodgenerator/spec",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc && node -e \"require('fs').copyFileSync('src/schema.json','dist/schema.json')\"",
+    "build": "tsc && node scripts/copy-schema.mjs",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {

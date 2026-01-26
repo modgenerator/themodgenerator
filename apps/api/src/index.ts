@@ -26,6 +26,14 @@ await app.register(cors, {
   optionsSuccessStatus: 204,
 });
 
+// Log environment check (without exposing secrets)
+console.log("[API] Environment check:", {
+  hasDatabaseUrl: !!process.env.DATABASE_URL,
+  databaseUrlLength: process.env.DATABASE_URL?.length ?? 0,
+  gcsBucket: process.env.GCS_BUCKET ?? "not set",
+  projectId: process.env.GCP_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? "not set",
+});
+
 await app.register(healthRoutes, { prefix: "/" });
 await app.register(jobRoutes, { prefix: "/jobs" });
 

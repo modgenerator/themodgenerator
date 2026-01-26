@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import { getPool, insertJob, getJobById, updateJob } from "@themodgenerator/db";
-import { getArtifactDownloadUrl, getLogDownloadUrl } from "@themodgenerator/gcp";
+import { getArtifactDownloadUrl } from "@themodgenerator/gcp";
 import { validateSpec } from "@themodgenerator/validator";
 import { planSpec } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";

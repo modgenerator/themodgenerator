@@ -7,7 +7,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc && node scripts/copy-schema.mjs",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "validate:schema": "node scripts/validate-schema.mjs"
   },
   "devDependencies": {
     "typescript": "~5.3.3"

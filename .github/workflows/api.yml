@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate schema.json
+        run: |
+          node packages/spec/scripts/validate-schema.mjs
+
       - name: Authenticate to GCP (WIF)
         id: auth
         uses: google-github-actions/auth@v2

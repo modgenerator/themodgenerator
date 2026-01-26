@@ -11,10 +11,12 @@ import { getPool, getJobById, updateJob } from "@themodgenerator/db";
 import { fromSpec } from "@themodgenerator/generator";
 import { validateSpec } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
+import { createHelloWorldSpec } from "@themodgenerator/spec";
 
 const JOB_ID = process.env.JOB_ID;
 const DATABASE_URL = process.env.DATABASE_URL;
 const GCS_BUCKET = process.env.GCS_BUCKET;
+const MODE = process.env.MODE ?? "test";
 
 async function main(): Promise<void> {
   if (!JOB_ID || !DATABASE_URL || !GCS_BUCKET) {
@@ -27,25 +29,31 @@ async function main(): Promise<void> {
     console.error("Job not found:", JOB_ID);
     process.exit(1);
   }
-  if (!job.spec_json) {
-    await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
-    process.exit(1);
-  }
-  const validation = validateSpec(job.spec_json, { prompt: job.prompt });
-  if (!validation.valid) {
-    await updateJob(pool, JOB_ID, {
-      status: "rejected",
-      rejection_reason: validation.reason ?? "Validation failed",
-    });
-    process.exit(1);
-  }
+  const mode = MODE || job.mode || "test";
   await updateJob(pool, JOB_ID, { status: "building", started_at: new Date() });
   const workDir = join(tmpdir(), `modbuild-${randomUUID()}`);
   const logPath = join(workDir, "build.log");
   let logContent = "";
   try {
     mkdirSync(workDir, { recursive: true });
-    fromSpec(job.spec_json, workDir);
+    // In test mode, always generate hello-world mod (ignore prompt)
+    let specToUse = job.spec_json;
+    if (mode === "test") {
+      specToUse = createHelloWorldSpec("test_mod", "Test Mod");
+    }
+    if (!specToUse) {
+      await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
+      process.exit(1);
+    }
+    const validation = validateSpec(specToUse, { prompt: job.prompt });
+    if (!validation.valid) {
+      await updateJob(pool, JOB_ID, {
+        status: "rejected",
+        rejection_reason: validation.reason ?? "Validation failed",
+      });
+      process.exit(1);
+    }
+    fromSpec(specToUse, workDir);
     // Run Gradle (assume Gradle is on PATH or use wrapper; we generate wrapper in build step)
     execSync("gradle wrapper", { cwd: workDir, stdio: "pipe" });
     try {
@@ -86,7 +94,11 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     const jarPath = join(jarDir, jarFile);
-    const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
+    // In test mode, use simple path: artifacts/<jobId>.jar
+    // In real mode, use: artifacts/<jobId>/<jarFile>
+    const artifactKey = mode === "test" 
+      ? `artifacts/${JOB_ID}.jar`
+      : `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;
     await uploadFile(jarPath, { bucket: GCS_BUCKET, destination: artifactKey, contentType: "application/java-archive" });
     writeFileSync(logPath, "Build succeeded.\n", "utf8");

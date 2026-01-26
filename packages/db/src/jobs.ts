@@ -15,6 +15,7 @@ export interface JobRow {
   user_id: string | null;
   parent_id: string | null;
   prompt: string;
+  mode: string | null;
   status: JobStatus;
   rejection_reason: string | null;
   spec_json: ModSpecV1 | null;
@@ -31,6 +32,7 @@ export interface InsertJobInput {
   user_id?: string | null;
   parent_id?: string | null;
   prompt: string;
+  mode?: string | null;
   status?: JobStatus;
   rejection_reason?: string | null;
   spec_json?: ModSpecV1 | null;
@@ -54,11 +56,11 @@ export async function insertJob(
 ): Promise<JobRow> {
   const res = await pool.query<Record<string, unknown>>(
     `INSERT INTO jobs (
-      id, user_id, parent_id, prompt, status, rejection_reason,
+      id, user_id, parent_id, prompt, mode, status, rejection_reason,
       spec_json, artifact_path, log_path
     ) VALUES (
-      COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'created'),
-      $6, $7, $8, $9
+      COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'test'), COALESCE($6, 'created'),
+      $7, $8, $9, $10
     )
     RETURNING *`,
     [
@@ -66,6 +68,7 @@ export async function insertJob(
       input.user_id ?? null,
       input.parent_id ?? null,
       input.prompt,
+      input.mode ?? "test",
       input.status ?? "created",
       input.rejection_reason ?? null,
       input.spec_json ? JSON.stringify(input.spec_json) : null,
@@ -142,6 +145,7 @@ function mapRow(r: Record<string, unknown>): JobRow {
     user_id: r.user_id as string | null,
     parent_id: r.parent_id as string | null,
     prompt: r.prompt as string,
+    mode: (r.mode as string | null) ?? "test",
     status: r.status as JobStatus,
     rejection_reason: r.rejection_reason as string | null,
     spec_json: r.spec_json as ModSpecV1 | null,

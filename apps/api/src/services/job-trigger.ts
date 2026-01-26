@@ -6,9 +6,9 @@ const builderJobName = process.env.BUILDER_JOB_NAME ?? "mod-builder";
 
 /**
  * Trigger the Cloud Run Builder Job for the given job ID via REST API.
- * The Builder container receives JOB_ID in its environment.
+ * The Builder container receives JOB_ID and MODE in its environment.
  */
-export async function triggerBuilderJob(jobId: string): Promise<void> {
+export async function triggerBuilderJob(jobId: string, mode: string = "test"): Promise<void> {
   if (!projectId) {
     throw new Error("GOOGLE_CLOUD_PROJECT or GCP_PROJECT must be set");
   }
@@ -28,7 +28,12 @@ export async function triggerBuilderJob(jobId: string): Promise<void> {
     },
     body: JSON.stringify({
       overrides: {
-        containerOverrides: [{ env: [{ name: "JOB_ID", value: jobId }] }],
+        containerOverrides: [{
+          env: [
+            { name: "JOB_ID", value: jobId },
+            { name: "MODE", value: mode },
+          ],
+        }],
         taskCount: 1,
       },
     }),

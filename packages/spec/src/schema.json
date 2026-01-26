@@ -65,7 +65,7 @@
       "properties": {
         "id": { "type": "string" },
         "type": { "type": "string" },
-        "result": { "type": "object", "properties": { "id": { "type": "string" }, "count": { "type": "integer" } }
+        "result": { "type": "object", "properties": { "id": { "type": "string" }, "count": { "type": "integer" } } }
       }
     },
     "ModLoot": {

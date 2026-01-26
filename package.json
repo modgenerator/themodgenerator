@@ -13,7 +13,8 @@
     "format": "prettier --write \"**/*.{ts,js,json,yml,yaml,md}\"",
     "db:migrate": "node packages/db/scripts/migrate.js",
     "api:dev": "npm run dev -w apps/api",
-    "builder:dev": "npm run dev -w apps/builder"
+    "builder:dev": "npm run dev -w apps/builder",
+    "validate:schema": "npm run validate:schema -w @themodgenerator/spec"
   },
   "devDependencies": {
     "prettier": "^3.2.5",

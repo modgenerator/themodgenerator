@@ -35,35 +35,35 @@ console.log("FILES IN apps/builder/dist:", existsSync("apps/builder/dist")
   : "MISSING apps/builder/dist");
 // ---- HARD START DEBUG ----
 
+/**
+ * Require an environment variable, exiting with code 1 if missing.
+ * Returns a guaranteed string (type narrowing for TypeScript).
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`[BUILDER] FATAL: ${name} environment variable is required but not set`);
+    process.exit(1);
+  }
+  return value;
+}
+
 // Validate required environment variables at startup
 console.log("[BUILDER] Validating environment variables...");
-const JOB_ID = process.env.JOB_ID;
-const DATABASE_URL = process.env.DATABASE_URL;
-const GCS_BUCKET = process.env.GCS_BUCKET;
-const MODE = process.env.MODE ?? "test";
+const JOB_ID: string = requireEnv("JOB_ID");
+const DATABASE_URL: string = requireEnv("DATABASE_URL");
+const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
+const MODE: string = process.env.MODE ?? "test";
 
 console.log("[BUILDER] Environment check:", {
-  hasJobId: !!JOB_ID,
-  jobIdLength: JOB_ID?.length ?? 0,
-  hasDatabaseUrl: !!DATABASE_URL,
-  databaseUrlLength: DATABASE_URL?.length ?? 0,
-  hasGcsBucket: !!GCS_BUCKET,
-  gcsBucket: GCS_BUCKET ?? "not set",
+  hasJobId: true,
+  jobIdLength: JOB_ID.length,
+  hasDatabaseUrl: true,
+  databaseUrlLength: DATABASE_URL.length,
+  hasGcsBucket: true,
+  gcsBucket: GCS_BUCKET,
   mode: MODE,
 });
-
-if (!JOB_ID) {
-  console.error("[BUILDER] FATAL: JOB_ID environment variable is required but not set");
-  process.exit(1);
-}
-if (!DATABASE_URL) {
-  console.error("[BUILDER] FATAL: DATABASE_URL environment variable is required but not set");
-  process.exit(1);
-}
-if (!GCS_BUCKET) {
-  console.error("[BUILDER] FATAL: GCS_BUCKET environment variable is required but not set");
-  process.exit(1);
-}
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
 

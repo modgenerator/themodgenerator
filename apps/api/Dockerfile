@@ -5,6 +5,7 @@ COPY package.json package-lock.json* ./
 COPY packages packages
 COPY apps apps
 COPY tsconfig.base.json ./
+COPY certs certs
 RUN npm install && \
     npm run build -w @themodgenerator/spec && \
     npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp && \
@@ -18,6 +19,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/certs /certs
 RUN cp -r /app/node_modules /app/apps/api/ 2>/dev/null || true
 EXPOSE 8080
 CMD ["node", "apps/api/dist/index.js"]

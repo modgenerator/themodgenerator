@@ -13,6 +13,7 @@ COPY package.json package-lock.json* ./
 COPY packages packages
 COPY apps apps
 COPY tsconfig.base.json ./
+COPY certs certs
 RUN npm install && \
     npm run build -w @themodgenerator/spec && \
     npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp -w @themodgenerator/generator && \
@@ -26,4 +27,5 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 COPY --from=builder /app/apps/builder/dist ./apps/builder/dist
 COPY --from=builder /app/apps/builder/package.json ./apps/builder/
+COPY --from=builder /app/certs /certs
 CMD ["node", "apps/builder/dist/index.js"]

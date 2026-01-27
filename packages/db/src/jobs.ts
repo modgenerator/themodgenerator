@@ -59,7 +59,7 @@ export async function insertJob(
       id, user_id, parent_id, prompt, mode, status, rejection_reason,
       spec_json, artifact_path, log_path
     ) VALUES (
-      COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'test'), COALESCE($6, 'created'),
+      COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'test'), $6::job_status,
       $7, $8, $9, $10
     )
     RETURNING *`,
@@ -100,7 +100,7 @@ export async function updateJob(
   const values: unknown[] = [];
   let i = 1;
   if (input.status !== undefined) {
-    updates.push(`status = $${i++}`);
+    updates.push(`status = $${i++}::job_status`);
     values.push(input.status);
   }
   if (input.rejection_reason !== undefined) {

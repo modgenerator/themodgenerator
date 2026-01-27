@@ -8,10 +8,15 @@ const app = Fastify({ logger: true });
 
 // Register CORS BEFORE routes to ensure preflight requests are handled
 await app.register(cors, {
-  origin: "*",
+  origin: true,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   optionsSuccessStatus: 204,
+});
+
+// Global OPTIONS handler to catch all preflight requests and return 204
+app.options("*", async (req, reply) => {
+  return reply.status(204).send();
 });
 
 // Log environment check (without exposing secrets)

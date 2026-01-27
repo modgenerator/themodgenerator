@@ -8,11 +8,10 @@ const app = Fastify({ logger: true });
 
 // Register CORS BEFORE routes to ensure preflight requests are handled
 await app.register(cors, {
-  origin: [
-    "https://themodgenerator.vercel.app",
-    "http://localhost:3000",
-  ],
+  origin: "*",
   methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
 });
 
 // Log environment check (without exposing secrets)

@@ -5,8 +5,11 @@ import { validateSpec } from "@themodgenerator/validator";
 import { planSpec } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
-const pool = getPool();
 const gcsBucket = process.env.GCS_BUCKET ?? "";
+
+function getDbPool() {
+  return getPool();
+}
 
 function parseGsUrl(gs: string): { bucket: string; path: string } | null {
   const m = /^gs:\/\/([^/]+)\/(.+)$/.exec(gs);
@@ -24,6 +27,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     if (mode !== "test" && mode !== "real") {
       return reply.status(400).send({ error: "mode must be 'test' or 'real'" });
     }
+    const pool = getDbPool();
     const spec = planSpec(prompt);
     const validation = validateSpec(spec, { prompt });
     if (!validation.valid) {
@@ -58,6 +62,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get<{ Params: { id: string } }>("/:id", async (req, reply) => {
+    const pool = getDbPool();
     const job = await getJobById(pool, req.params.id);
     if (!job) {
       return reply.status(404).send({ error: "Job not found" });

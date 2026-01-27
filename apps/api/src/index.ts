@@ -57,5 +57,8 @@ async function start() {
 
 start().catch((err) => {
   console.error("[FATAL] API failed to start:", err);
+  if (err instanceof Error) {
+    console.error("[FATAL] Stack:", err.stack);
+  }
   process.exit(1);
 });

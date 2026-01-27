@@ -4,7 +4,9 @@ import { validateSpec } from "@themodgenerator/validator";
 import { planSpec } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
-const pool = getPool();
+function getDbPool() {
+  return getPool();
+}
 
 export const generateRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { prompt: string; mode?: "test" | "real" } }>("/", async (req, reply) => {
@@ -18,6 +20,8 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     if (mode !== "test" && mode !== "real") {
       return reply.status(400).send({ error: "mode must be 'test' or 'real'" });
     }
+    
+    const pool = getDbPool();
     
     // Plan the spec
     const spec = planSpec(prompt);

@@ -29,11 +29,6 @@ async function start() {
     optionsSuccessStatus: 204,
   });
 
-  // Global OPTIONS handler to catch all preflight requests and return 204
-  app.options("*", async (_req, reply) => {
-    return reply.status(204).send();
-  });
-
   // Log environment check (without exposing secrets)
   console.log("[API] Environment check:", {
     hasDatabaseUrl: !!process.env.DATABASE_URL,

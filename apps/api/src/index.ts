@@ -15,7 +15,7 @@ await app.register(cors, {
 });
 
 // Global OPTIONS handler to catch all preflight requests and return 204
-app.options("*", async (req, reply) => {
+app.options("*", async (_req, reply) => {
   return reply.status(204).send();
 });
 

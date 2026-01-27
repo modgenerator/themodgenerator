@@ -4,13 +4,17 @@ import { healthRoutes } from "./routes/health.js";
 import { jobRoutes } from "./routes/jobs.js";
 import { generateRoutes } from "./routes/generate.js";
 
-process.on("unhandledRejection", (err) => {
-  console.error("[FATAL] Unhandled rejection:", err);
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+  console.error("[FATAL] Stack:", err.stack);
   process.exit(1);
 });
 
-process.on("uncaughtException", (err) => {
-  console.error("[FATAL] Uncaught exception:", err);
+process.on("unhandledRejection", (err) => {
+  console.error("[FATAL] Unhandled rejection:", err);
+  if (err instanceof Error) {
+    console.error("[FATAL] Stack:", err.stack);
+  }
   process.exit(1);
 });
 

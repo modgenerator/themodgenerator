@@ -1,3 +1,4 @@
+console.log("MOD-BUILDER STARTED");
 /**
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.

@@ -10,23 +10,32 @@ const builderJobName = process.env.BUILDER_JOB_NAME ?? "mod-builder";
  */
 export async function triggerBuilderJob(jobId: string, mode: string = "test"): Promise<void> {
   if (!projectId) {
-    throw new Error("GOOGLE_CLOUD_PROJECT or GCP_PROJECT must be set");
+    const error = new Error("GOOGLE_CLOUD_PROJECT or GCP_PROJECT must be set");
+    console.error("[JOB-TRIGGER] Missing project ID:", error);
+    throw error;
   }
+  
   const name = `projects/${projectId}/locations/${region}/jobs/${builderJobName}`;
   const url = `https://run.googleapis.com/v2/${name}:run`;
-  const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
-  const client = await auth.getClient();
-  const token = await client.getAccessToken();
-  if (!token.token) {
-    throw new Error("Failed to get access token for Cloud Run");
-  }
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token.token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  
+  console.log(`[JOB-TRIGGER] Triggering job: ${name}`);
+  console.log(`[JOB-TRIGGER] URL: ${url}`);
+  console.log(`[JOB-TRIGGER] JobId: ${jobId}, Mode: ${mode}`);
+  
+  try {
+    const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+    const client = await auth.getClient();
+    console.log(`[JOB-TRIGGER] Got auth client`);
+    
+    const token = await client.getAccessToken();
+    if (!token.token) {
+      const error = new Error("Failed to get access token for Cloud Run");
+      console.error("[JOB-TRIGGER] Access token error:", error);
+      throw error;
+    }
+    console.log(`[JOB-TRIGGER] Got access token (length: ${token.token.length})`);
+    
+    const requestBody = {
       overrides: {
         containerOverrides: [{
           env: [
@@ -36,10 +45,34 @@ export async function triggerBuilderJob(jobId: string, mode: string = "test"): P
         }],
         taskCount: 1,
       },
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Cloud Run job trigger failed: ${res.status} ${text}`);
+    };
+    console.log(`[JOB-TRIGGER] Request body:`, JSON.stringify(requestBody, null, 2));
+    
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+    
+    console.log(`[JOB-TRIGGER] Response status: ${res.status} ${res.statusText}`);
+    
+    if (!res.ok) {
+      const text = await res.text();
+      const error = new Error(`Cloud Run job trigger failed: ${res.status} ${text}`);
+      console.error(`[JOB-TRIGGER] API error response:`, text);
+      throw error;
+    }
+    
+    const responseText = await res.text();
+    console.log(`[JOB-TRIGGER] Job triggered successfully. Response:`, responseText);
+  } catch (err) {
+    console.error(`[JOB-TRIGGER] Exception during job trigger:`, err);
+    if (err instanceof Error) {
+      console.error(`[JOB-TRIGGER] Exception stack:`, err.stack);
+    }
+    throw err;
   }
 }

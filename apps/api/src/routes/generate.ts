@@ -47,9 +47,16 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     });
     
     try {
+      console.log(`[GENERATE] Triggering builder job for jobId=${job.id}, mode=${mode}`);
       await triggerBuilderJob(job.id, mode);
+      console.log(`[GENERATE] Builder job triggered successfully for jobId=${job.id}`);
       await updateJob(pool, job.id, { status: "building" });
+      return reply.status(200).send({ jobId: job.id, status: "queued" });
     } catch (err) {
+      console.error(`[GENERATE] Failed to trigger builder job for jobId=${job.id}:`, err);
+      if (err instanceof Error) {
+        console.error(`[GENERATE] Error stack:`, err.stack);
+      }
       await updateJob(pool, job.id, {
         status: "failed",
         rejection_reason: err instanceof Error ? err.message : "Failed to start builder",
@@ -59,7 +66,5 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
         jobId: job.id,
       });
     }
-    
-    return reply.status(200).send({ jobId: job.id, status: "queued" });
   });
 };

@@ -4,6 +4,16 @@ import { healthRoutes } from "./routes/health.js";
 import { jobRoutes } from "./routes/jobs.js";
 import { generateRoutes } from "./routes/generate.js";
 
+process.on("unhandledRejection", (err) => {
+  console.error("[FATAL] Unhandled rejection:", err);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[FATAL] Uncaught exception:", err);
+  process.exit(1);
+});
+
 const app = Fastify({ logger: true });
 
 // Register CORS BEFORE routes to ensure preflight requests are handled
@@ -33,5 +43,7 @@ await app.register(generateRoutes, { prefix: "/generate" });
 
 const port = Number(process.env.PORT ?? 8080);
 const host = process.env.HOST ?? "0.0.0.0";
+await app.ready();
+console.log("[API] Fastify ready, starting server...");
 await app.listen({ port, host });
 console.log(`API listening on ${host}:${port}`);

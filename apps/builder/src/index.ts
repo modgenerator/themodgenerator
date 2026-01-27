@@ -1,5 +1,23 @@
-console.log("MOD BUILDER BOOTED");
-setTimeout(() => {}, 10_000);
+// ---- HARD START DEBUG ----
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED_REJECTION", err);
+  process.exit(1);
+});
+
+console.log("MOD-BUILDER BOOT: start");
+console.log("NODE VERSION:", process.version);
+console.log("CWD:", process.cwd());
+console.log("FILES IN CWD:", require("fs").readdirSync("."));
+console.log("FILES IN apps/builder/dist:", require("fs").existsSync("apps/builder/dist")
+  ? require("fs").readdirSync("apps/builder/dist")
+  : "MISSING apps/builder/dist");
+// ---- HARD START DEBUG ----
+
 /**
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.

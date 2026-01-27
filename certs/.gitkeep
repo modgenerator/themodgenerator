@@ -1,0 +1,2 @@
+# This directory contains supabase-ca.pem
+# Add the certificate file here before building Docker images

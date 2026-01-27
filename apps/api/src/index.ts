@@ -13,10 +13,13 @@ await app.register(cors, {
     const allowed = [
       "http://localhost:3000",
       "http://127.0.0.1:3000",
+      "http://10.32.139.218:3000",
     ];
     if (allowed.includes(origin)) {
       return cb(null, true);
     }
+    // Log rejected origins for debugging
+    console.log("[CORS] Rejected origin:", origin);
     return cb(null, false);
   },
   methods: ["GET", "POST", "OPTIONS"],

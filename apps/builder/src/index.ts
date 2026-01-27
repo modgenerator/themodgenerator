@@ -12,17 +12,12 @@ process.on("unhandledRejection", (err) => {
 console.log("MOD-BUILDER BOOT: start");
 console.log("NODE VERSION:", process.version);
 console.log("CWD:", process.cwd());
-console.log("FILES IN CWD:", require("fs").readdirSync("."));
-console.log("FILES IN apps/builder/dist:", require("fs").existsSync("apps/builder/dist")
-  ? require("fs").readdirSync("apps/builder/dist")
-  : "MISSING apps/builder/dist");
-// ---- HARD START DEBUG ----
 
 /**
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.
  */
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -32,6 +27,13 @@ import { fromSpec } from "@themodgenerator/generator";
 import { validateSpec } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { createHelloWorldSpec } from "@themodgenerator/spec";
+
+// Continue debug logging after imports are available
+console.log("FILES IN CWD:", readdirSync("."));
+console.log("FILES IN apps/builder/dist:", existsSync("apps/builder/dist")
+  ? readdirSync("apps/builder/dist")
+  : "MISSING apps/builder/dist");
+// ---- HARD START DEBUG ----
 
 const JOB_ID = process.env.JOB_ID;
 const DATABASE_URL = process.env.DATABASE_URL;

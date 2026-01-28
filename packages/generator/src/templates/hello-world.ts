@@ -99,12 +99,6 @@ java {
 	targetCompatibility = JavaVersion.VERSION_21
 	withSourcesJar()
 }
-
-tasks.jar {
-	from("LICENSE") {
-		rename { "\${it}_\${project.archivesBaseName}" -> "\${it}" }
-	}
-}
 `;
 }
 

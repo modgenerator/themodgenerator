@@ -53,6 +53,7 @@ function toClassName(s: string): string {
 
 function buildGradle(modId: string): string {
   return `plugins {
+	id 'java'
 	id 'fabric-loom' version '1.7-SNAPSHOT'
 	id 'maven-publish'
 }
@@ -99,7 +100,7 @@ java {
 	withSourcesJar()
 }
 
-jar {
+tasks.jar {
 	from("LICENSE") {
 		rename { "\${it}_\${project.archivesBaseName}" -> "\${it}" }
 	}

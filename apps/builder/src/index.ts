@@ -21,7 +21,7 @@ import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { getPool, getJobById, updateJob } from "@themodgenerator/db";
 import { fromSpec } from "@themodgenerator/generator";
 import { validateSpec } from "@themodgenerator/validator";
@@ -66,6 +66,78 @@ console.log("[BUILDER] Environment check:", {
 });
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
+
+/**
+ * Execute a Gradle command with timeout, streaming, and proper error handling.
+ * Returns stdout and stderr as strings.
+ */
+async function runGradle(
+  command: string[],
+  cwd: string,
+  timeoutMs: number = 600000 // 10 minutes default
+): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  return new Promise((resolve, reject) => {
+    const gradleEnv = {
+      ...process.env,
+      GRADLE_OPTS: "-Xmx768m -Xms256m -XX:MaxMetaspaceSize=256m -Dorg.gradle.daemon=false",
+    };
+    
+    console.log(`[BUILDER] Executing: ${command.join(" ")}`);
+    console.log(`[BUILDER] Working directory: ${cwd}`);
+    console.log(`[BUILDER] GRADLE_OPTS: ${gradleEnv.GRADLE_OPTS}`);
+    
+    const proc = spawn(command[0], command.slice(1), {
+      cwd,
+      env: gradleEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    
+    let stdout = "";
+    let stderr = "";
+    
+    proc.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stdout += text;
+      // Stream to console in real-time
+      process.stdout.write(text);
+    });
+    
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderr += text;
+      // Stream to console in real-time
+      process.stderr.write(text);
+    });
+    
+    const timeout = setTimeout(() => {
+      console.error(`[BUILDER] Gradle command timed out after ${timeoutMs}ms, killing process...`);
+      proc.kill("SIGKILL");
+      reject(new Error(`Gradle command timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    
+    proc.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+    
+    proc.on("exit", (code, signal) => {
+      clearTimeout(timeout);
+      if (signal) {
+        const err = new Error(`Gradle process killed by signal: ${signal}`) as Error & { stdout: string; stderr: string };
+        err.stdout = stdout;
+        err.stderr = stderr;
+        reject(err);
+      } else if (code !== 0) {
+        const err = new Error(`Gradle command failed with exit code ${code}`) as Error & { stdout: string; stderr: string };
+        err.stdout = stdout;
+        err.stderr = stderr;
+        reject(err);
+      } else {
+        resolve({ stdout, stderr, exitCode: code ?? 0 });
+      }
+    });
+  });
+}
 
 async function main(): Promise<void> {
   console.log(`[BUILDER] Main function started. JOB_ID=${JOB_ID}, MODE=${MODE}`);
@@ -124,35 +196,48 @@ async function main(): Promise<void> {
     fromSpec(specToUse, workDir);
     console.log("[BUILDER] Fabric project generated");
     
-    // Run Gradle (assume Gradle is on PATH or use wrapper; we generate wrapper in build step)
-    console.log("[BUILDER] Running 'gradle wrapper'...");
-    execSync("gradle wrapper", { 
-      cwd: workDir, 
-      stdio: "pipe",
-      env: { ...process.env, GRADLE_OPTS: "-Xmx512m -Xms256m" }
-    });
-    console.log("[BUILDER] Gradle wrapper created");
+    // Run Gradle wrapper generation
     try {
-      console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
-      execSync("./gradlew build --no-daemon --no-build-cache", {
-        cwd: workDir,
-        encoding: "utf8",
-        stdio: "pipe",
-        env: { ...process.env, GRADLE_OPTS: "-Xmx512m -Xms256m -XX:MaxMetaspaceSize=256m" }
-      });
-      console.log("[BUILDER] Gradle build completed successfully");
-    } catch (gradleErr: unknown) {
-      console.error("[BUILDER] FATAL: Gradle build failed");
-      const out = (gradleErr as { stdout?: string; stderr?: string }).stdout ?? "";
-      const err = (gradleErr as { stderr?: string }).stderr ?? "";
-      logContent = `stdout:\n${out}\nstderr:\n${err}`;
+      await runGradle(["gradle", "wrapper", "--no-daemon"], workDir, 120000); // 2 minutes for wrapper
+      console.log("[BUILDER] Gradle wrapper created");
+    } catch (wrapperErr) {
+      console.error("[BUILDER] FATAL: Failed to create Gradle wrapper");
+      logContent = `Wrapper creation failed:\n${wrapperErr instanceof Error ? wrapperErr.message : String(wrapperErr)}`;
       writeFileSync(logPath, logContent, "utf8");
       const logKey = `logs/${JOB_ID}/build.log`;
       await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
       await updateJob(pool, JOB_ID, {
         status: "failed",
         finished_at: new Date(),
-        rejection_reason: "Gradle build failed",
+        rejection_reason: "Failed to create Gradle wrapper",
+        log_path: `gs://${GCS_BUCKET}/${logKey}`,
+      });
+      console.error("[BUILDER] Exiting with code 1: Wrapper creation failed");
+      process.exit(1);
+    }
+    
+    // Run Gradle build
+    try {
+      console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
+      const buildResult = await runGradle(
+        ["./gradlew", "build", "--no-daemon", "--no-build-cache"],
+        workDir,
+        600000 // 10 minutes for build
+      );
+      console.log(`[BUILDER] Gradle build completed successfully (exit code: ${buildResult.exitCode})`);
+      logContent = `Build succeeded.\n\nSTDOUT:\n${buildResult.stdout}\n\nSTDERR:\n${buildResult.stderr}`;
+      writeFileSync(logPath, logContent, "utf8");
+    } catch (gradleErr: unknown) {
+      console.error("[BUILDER] FATAL: Gradle build failed");
+      const errorMsg = gradleErr instanceof Error ? gradleErr.message : String(gradleErr);
+      logContent = `Gradle build failed: ${errorMsg}\n\nSTDOUT:\n${(gradleErr as { stdout?: string })?.stdout ?? ""}\n\nSTDERR:\n${(gradleErr as { stderr?: string })?.stderr ?? ""}`;
+      writeFileSync(logPath, logContent, "utf8");
+      const logKey = `logs/${JOB_ID}/build.log`;
+      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+      await updateJob(pool, JOB_ID, {
+        status: "failed",
+        finished_at: new Date(),
+        rejection_reason: `Gradle build failed: ${errorMsg}`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
       console.error("[BUILDER] Exiting with code 1: Gradle build failed");

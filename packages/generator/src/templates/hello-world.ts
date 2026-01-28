@@ -113,6 +113,12 @@ fabric_version=0.109.0+1.21.1
 mod_version=1.0.0
 maven_group=net.themodgenerator
 archives_base_name=generated
+
+# Disable daemon for Cloud Run
+org.gradle.daemon=false
+org.gradle.jvmargs=-Xmx768m -Xms256m -XX:MaxMetaspaceSize=256m
+org.gradle.parallel=false
+org.gradle.configureondemand=false
 `;
 }
 

@@ -126,14 +126,19 @@ async function main(): Promise<void> {
     
     // Run Gradle (assume Gradle is on PATH or use wrapper; we generate wrapper in build step)
     console.log("[BUILDER] Running 'gradle wrapper'...");
-    execSync("gradle wrapper", { cwd: workDir, stdio: "pipe" });
+    execSync("gradle wrapper", { 
+      cwd: workDir, 
+      stdio: "pipe",
+      env: { ...process.env, GRADLE_OPTS: "-Xmx512m -Xms256m" }
+    });
     console.log("[BUILDER] Gradle wrapper created");
     try {
-      console.log("[BUILDER] Running './gradlew build --no-daemon -q'...");
-      execSync("./gradlew build --no-daemon -q", {
+      console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
+      execSync("./gradlew build --no-daemon --no-build-cache", {
         cwd: workDir,
         encoding: "utf8",
         stdio: "pipe",
+        env: { ...process.env, GRADLE_OPTS: "-Xmx512m -Xms256m -XX:MaxMetaspaceSize=256m" }
       });
       console.log("[BUILDER] Gradle build completed successfully");
     } catch (gradleErr: unknown) {

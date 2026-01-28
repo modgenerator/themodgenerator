@@ -1,6 +1,7 @@
 import type { ModSpecV1 } from "@themodgenerator/spec";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** Emit a minimal valid Fabric 1.21.1 mod from spec into outDir. No free-form code. */
 export function emitHelloWorld(spec: ModSpecV1, outDir: string): void {
@@ -13,9 +14,33 @@ export function emitHelloWorld(spec: ModSpecV1, outDir: string): void {
     join(outDir, "src", "main", "java", "net", "themodgenerator", javaPackage),
     join(outDir, "src", "main", "resources"),
     join(outDir, "src", "main", "resources", "assets", id, "lang"),
+    join(outDir, "gradle", "wrapper"),
   ];
   for (const d of dirs) {
     mkdirSync(d, { recursive: true });
+  }
+
+  // Copy vendored Gradle wrapper files
+  const currentFile = fileURLToPath(import.meta.url);
+  const packageRoot = join(dirname(currentFile), "../../..");
+  const repoRoot = join(packageRoot, "../..");
+  const templateDir = join(repoRoot, "templates", "fabric-wrapper");
+  
+  copyFileSync(join(templateDir, "gradlew"), join(outDir, "gradlew"));
+  copyFileSync(join(templateDir, "gradlew.bat"), join(outDir, "gradlew.bat"));
+  copyFileSync(join(templateDir, "gradle", "wrapper", "gradle-wrapper.properties"), join(outDir, "gradle", "wrapper", "gradle-wrapper.properties"));
+  
+  // Copy gradle-wrapper.jar if it exists in template (will be downloaded by wrapper if missing)
+  const wrapperJarPath = join(templateDir, "gradle", "wrapper", "gradle-wrapper.jar");
+  if (existsSync(wrapperJarPath)) {
+    copyFileSync(wrapperJarPath, join(outDir, "gradle", "wrapper", "gradle-wrapper.jar"));
+  }
+  
+  // Make gradlew executable (may fail on Windows, that's okay)
+  try {
+    chmodSync(join(outDir, "gradlew"), 0o755);
+  } catch {
+    // Ignore chmod errors on Windows
   }
 
   writeFileSync(join(outDir, "build.gradle"), buildGradle(id), "utf8");

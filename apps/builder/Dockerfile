@@ -13,6 +13,11 @@ COPY package.json package-lock.json* ./
 COPY packages packages
 COPY apps apps
 COPY tsconfig.base.json ./
+COPY templates templates
+# Download gradle-wrapper.jar for vendored wrapper template
+RUN mkdir -p templates/fabric-wrapper/gradle/wrapper && \
+    curl -sL "https://raw.githubusercontent.com/gradle/gradle/v8.10.2/gradle/wrapper/gradle-wrapper.jar" \
+    -o templates/fabric-wrapper/gradle/wrapper/gradle-wrapper.jar || true
 # Create certs directory structure (certificate will be added via secret mount or build arg in production)
 RUN mkdir -p ./certs
 RUN npm install && \

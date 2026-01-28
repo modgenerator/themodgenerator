@@ -196,27 +196,7 @@ async function main(): Promise<void> {
     fromSpec(specToUse, workDir);
     console.log("[BUILDER] Fabric project generated");
     
-    // Run Gradle wrapper generation
-    try {
-      await runGradle(["gradle", "wrapper", "--no-daemon"], workDir, 120000); // 2 minutes for wrapper
-      console.log("[BUILDER] Gradle wrapper created");
-    } catch (wrapperErr) {
-      console.error("[BUILDER] FATAL: Failed to create Gradle wrapper");
-      logContent = `Wrapper creation failed:\n${wrapperErr instanceof Error ? wrapperErr.message : String(wrapperErr)}`;
-      writeFileSync(logPath, logContent, "utf8");
-      const logKey = `logs/${JOB_ID}/build.log`;
-      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
-      await updateJob(pool, JOB_ID, {
-        status: "failed",
-        finished_at: new Date(),
-        rejection_reason: "Failed to create Gradle wrapper",
-        log_path: `gs://${GCS_BUCKET}/${logKey}`,
-      });
-      console.error("[BUILDER] Exiting with code 1: Wrapper creation failed");
-      process.exit(1);
-    }
-    
-    // Run Gradle build
+    // Run Gradle build (wrapper is vendored, no need to generate)
     try {
       console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
       const buildResult = await runGradle(

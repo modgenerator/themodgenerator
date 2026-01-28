@@ -31,6 +31,7 @@ ENV NODE_ENV=production
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/templates ./templates
 COPY --from=builder /app/apps/builder/dist ./apps/builder/dist
 COPY --from=builder /app/apps/builder/package.json ./apps/builder/
 # Copy certs directory (may be empty, code handles missing cert file gracefully)

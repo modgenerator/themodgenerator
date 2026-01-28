@@ -76,6 +76,10 @@ async function runGradle(
   cwd: string,
   timeoutMs: number = 600000 // 10 minutes default
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const currentMode = process.env.MODE ?? "test";
+  if (currentMode === "test") {
+    throw new Error("FATAL: Gradle execution is forbidden in test mode. This is a programming error.");
+  }
   return new Promise((resolve, reject) => {
     const gradleEnv = {
       ...process.env,
@@ -196,6 +200,42 @@ async function main(): Promise<void> {
     fromSpec(specToUse, workDir);
     console.log("[BUILDER] Fabric project generated");
     
+    if (mode === "test") {
+      console.log("[BUILDER] Test mode: skipping Gradle execution");
+      const requiredFiles = [
+        "build.gradle",
+        "settings.gradle",
+        "gradlew",
+        "src/main/java",
+      ];
+      const missingFiles: string[] = [];
+      for (const file of requiredFiles) {
+        const filePath = join(workDir, file);
+        if (!existsSync(filePath)) {
+          missingFiles.push(file);
+        }
+      }
+      if (missingFiles.length > 0) {
+        throw new Error(`FATAL: Required files missing in test mode: ${missingFiles.join(", ")}`);
+      }
+      console.log("[BUILDER] Test mode: all required files validated");
+      logContent = "Test mode complete — Gradle skipped, files validated.\n";
+      writeFileSync(logPath, logContent, "utf8");
+      const logKey = `logs/${JOB_ID}/build.log`;
+      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+      await updateJob(pool, JOB_ID, {
+        status: "succeeded",
+        finished_at: new Date(),
+        log_path: `gs://${GCS_BUCKET}/${logKey}`,
+      });
+      console.log("[BUILDER] Test mode complete — exiting successfully");
+      return;
+    }
+    
+    if (mode !== "build") {
+      throw new Error(`FATAL: Invalid mode '${mode}'. Only 'test' and 'build' modes are supported.`);
+    }
+    
     const gradlewPath = join(workDir, "gradlew");
     if (!existsSync(gradlewPath)) {
       throw new Error(`FATAL: gradlew not found at ${gradlewPath}. Wrapper must be vendored, not generated at runtime.`);
@@ -248,11 +288,7 @@ async function main(): Promise<void> {
     }
     console.log(`[BUILDER] Found JAR file: ${jarFile}`);
     const jarPath = join(jarDir, jarFile);
-    // In test mode, use simple path: artifacts/<jobId>.jar
-    // In real mode, use: artifacts/<jobId>/<jarFile>
-    const artifactKey = mode === "test" 
-      ? `artifacts/${JOB_ID}.jar`
-      : `artifacts/${JOB_ID}/${jarFile}`;
+    const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;
     
     console.log(`[BUILDER] Uploading JAR to GCS: gs://${GCS_BUCKET}/${artifactKey}`);

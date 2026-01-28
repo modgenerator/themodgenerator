@@ -21,9 +21,11 @@ export function emitHelloWorld(spec: ModSpecV1, outDir: string): void {
   }
 
   // Copy vendored Gradle wrapper files
+  // Resolve template path relative to compiled JS file location
+  // Compiled file: packages/generator/dist/templates/hello-world.js
+  // Template dir: templates/fabric-wrapper (at repo root)
   const currentFile = fileURLToPath(import.meta.url);
-  const packageRoot = join(dirname(currentFile), "../../..");
-  const repoRoot = join(packageRoot, "../..");
+  const repoRoot = join(dirname(currentFile), "../../../../");
   const templateDir = join(repoRoot, "templates", "fabric-wrapper");
   
   copyFileSync(join(templateDir, "gradlew"), join(outDir, "gradlew"));

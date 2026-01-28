@@ -77,11 +77,9 @@ async function runGradle(
   timeoutMs: number = 600000 // 10 minutes default
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
-    // Disable Gradle daemon via environment variable (redundant with --no-daemon flag
-    // and gradle.properties, but ensures daemon cannot start even if config is ignored)
     const gradleEnv = {
       ...process.env,
-      GRADLE_OPTS: "-Xmx512m -Xms128m -XX:MaxMetaspaceSize=256m -Dorg.gradle.daemon=false",
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false",
     };
     
     console.log(`[BUILDER] Executing: ${command.join(" ")}`);
@@ -198,13 +196,17 @@ async function main(): Promise<void> {
     fromSpec(specToUse, workDir);
     console.log("[BUILDER] Fabric project generated");
     
-    // Run Gradle build (wrapper is vendored, no need to generate)
+    const gradlewPath = join(workDir, "gradlew");
+    if (!existsSync(gradlewPath)) {
+      throw new Error(`FATAL: gradlew not found at ${gradlewPath}. Wrapper must be vendored, not generated at runtime.`);
+    }
+    
     try {
       console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
       const buildResult = await runGradle(
         ["./gradlew", "build", "--no-daemon", "--no-build-cache"],
         workDir,
-        600000 // 10 minutes for build
+        600000
       );
       console.log(`[BUILDER] Gradle build completed successfully (exit code: ${buildResult.exitCode})`);
       logContent = `Build succeeded.\n\nSTDOUT:\n${buildResult.stdout}\n\nSTDERR:\n${buildResult.stderr}`;

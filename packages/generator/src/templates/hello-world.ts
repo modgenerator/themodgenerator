@@ -148,10 +148,9 @@ archives_base_name=generated
 # - Ephemeral filesystems don't preserve daemon state
 # Solution: run single foreground Gradle invocation with --no-daemon
 org.gradle.daemon=false
-org.gradle.jvmargs=-Xmx512m -Xms128m -XX:MaxMetaspaceSize=256m
 org.gradle.parallel=false
 org.gradle.configureondemand=false
-org.gradle.caching=false
+org.gradle.jvmargs=-Xms64m -Xmx256m
 `;
 }
 

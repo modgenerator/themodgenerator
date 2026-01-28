@@ -77,6 +77,8 @@ async function runGradle(
   timeoutMs: number = 600000 // 10 minutes default
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
+    // Disable Gradle daemon via environment variable (redundant with --no-daemon flag
+    // and gradle.properties, but ensures daemon cannot start even if config is ignored)
     const gradleEnv = {
       ...process.env,
       GRADLE_OPTS: "-Xmx512m -Xms128m -XX:MaxMetaspaceSize=256m -Dorg.gradle.daemon=false",

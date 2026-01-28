@@ -141,11 +141,12 @@ mod_version=1.0.0
 maven_group=net.themodgenerator
 archives_base_name=generated
 
-# Disable daemon for Cloud Run
+# Disable daemon for Cloud Run / CI stability
 org.gradle.daemon=false
-org.gradle.jvmargs=-Xmx768m -Xms256m -XX:MaxMetaspaceSize=256m
+org.gradle.jvmargs=-Xmx512m -Xms128m -XX:MaxMetaspaceSize=256m
 org.gradle.parallel=false
 org.gradle.configureondemand=false
+org.gradle.caching=false
 `;
 }
 

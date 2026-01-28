@@ -79,7 +79,7 @@ async function runGradle(
   return new Promise((resolve, reject) => {
     const gradleEnv = {
       ...process.env,
-      GRADLE_OPTS: "-Xmx768m -Xms256m -XX:MaxMetaspaceSize=256m -Dorg.gradle.daemon=false",
+      GRADLE_OPTS: "-Xmx512m -Xms128m -XX:MaxMetaspaceSize=256m -Dorg.gradle.daemon=false",
     };
     
     console.log(`[BUILDER] Executing: ${command.join(" ")}`);

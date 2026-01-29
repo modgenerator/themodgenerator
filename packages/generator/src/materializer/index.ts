@@ -11,6 +11,8 @@
  * - Language entries
  * - Functional behaviors where defined
  * If behavior is undefined → safe default, never failure.
+ * No "preview-only"; no fake logic.
+ * If something is outside item/block scope: log it, scaffold it, do not block generation.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";

@@ -21,8 +21,25 @@ export type {
   ItemRarity,
   BlockMaterial,
   BlockShape,
+  SemanticTag,
+  PhysicalTraits,
+  GameplayTraits,
+  GameplayEffect,
+  AestheticProfile,
+  MaterialHint,
+  TextureSource,
+  AnimationSpec,
+  AestheticTextureRecipe,
 } from "./item-block-primitives.js";
-export { defaultItemPrimitive, defaultBlockPrimitive } from "./item-block-primitives.js";
+export {
+  defaultItemPrimitive,
+  defaultBlockPrimitive,
+  defaultPhysicalTraits,
+  defaultAestheticProfile,
+  deriveTextureRecipe,
+} from "./item-block-primitives.js";
+export type { InterpretedKind, InterpretedResult } from "./interpretation.js";
+export { interpretItemOrBlock } from "./interpretation.js";
 export type { UserIntent, ExecutionPlan } from "./execution-plan.js";
 export { planFromIntent, calculateCredits, intentToSystems } from "./execution-plan.js";
 export type { SystemUnit, SystemDefinition, PrimitiveId } from "./system-units.js";

@@ -12,6 +12,17 @@ export {
 } from "./materializer/index.js";
 export type { Primitive, PrimitiveDefinition, PrimitiveSafety } from "./primitives.js";
 export { PRIMITIVE_REGISTRY } from "./primitives.js";
+export type {
+  ItemPrimitive,
+  BlockPrimitive,
+  EffectPrimitive,
+  PassiveEffectPrimitive,
+  ItemCategory,
+  ItemRarity,
+  BlockMaterial,
+  BlockShape,
+} from "./item-block-primitives.js";
+export { defaultItemPrimitive, defaultBlockPrimitive } from "./item-block-primitives.js";
 export type { UserIntent, ExecutionPlan } from "./execution-plan.js";
 export { planFromIntent, calculateCredits, intentToSystems } from "./execution-plan.js";
 export type { SystemUnit, SystemDefinition, PrimitiveId } from "./system-units.js";

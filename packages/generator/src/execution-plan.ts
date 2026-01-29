@@ -9,6 +9,11 @@
  * - Credits are economic only; they never disable features.
  * - If over budget, the mod is still fully generated.
  * - Budget only affects whether the user can download without upgrading.
+ *
+ * UNSUPPORTED SYSTEMS (quests, NPCs, worldgen, dimensions):
+ * - Record intent in execution plan and scope costing
+ * - Generate no-op system stubs; DO NOT error
+ * - DO NOT invent fake gameplay
  */
 
 import type { Primitive } from "./primitives.js";

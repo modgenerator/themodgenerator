@@ -2,6 +2,15 @@
  * Plane 3: Fabric materialization for Tier 1 only.
  * Consumes ExpandedSpecTier1 and AssetKey[]; optional ExecutionPlan[] for behavior.
  * No filesystem writes; no Gradle invocation. Deterministic.
+ *
+ * MATERIALIZER RULE (VERY IMPORTANT)
+ * Items and blocks must always produce:
+ * - Registered Fabric item/block
+ * - Correct textures folder
+ * - Default JSON models
+ * - Language entries
+ * - Functional behaviors where defined
+ * If behavior is undefined → safe default, never failure.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";

@@ -1,6 +1,8 @@
 /**
  * Plane 3 golden tests: deterministic output, expected paths, empty spec, Tier 1 set only.
  * Compares string outputs; no filesystem.
+ * Invariants: any item → registered Fabric item; any block → registered Fabric block;
+ * unknown behavior → does not throw; assets always exist in output.
  */
 
 import { describe, it } from "node:test";
@@ -8,7 +10,8 @@ import assert from "node:assert";
 import type { ModSpecV1 } from "@themodgenerator/spec";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { composeTier1Stub } from "../composer-stub.js";
-import { materializeTier1 } from "./index.js";
+import { materializeTier1, materializeTier1WithPlans } from "./index.js";
+import { planFromIntent } from "../execution-plan.js";
 
 function minimalTier1Spec(overrides: Partial<ModSpecV1> = {}): ModSpecV1 {
   return {
@@ -116,5 +119,76 @@ describe("materializeTier1 golden tests", () => {
       const matched = allowedPathPatterns.some((p) => p.test(f.path));
       assert.ok(matched, `path must be in Tier 1 set: ${f.path}`);
     }
+  });
+});
+
+describe("materializer invariants", () => {
+  it("any item request produces a registered Fabric item", () => {
+    const spec = minimalTier1Spec({ items: [{ id: "any_item", name: "Any Item" }] });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const paths = files.map((f) => f.path);
+    assert.ok(paths.some((p) => p.includes("textures/item/any_item")), "item texture path must exist");
+    assert.ok(paths.some((p) => p.includes("models/item/any_item")), "item model path must exist");
+    const javaFile = files.find((f) => f.path.endsWith("TestMod.java"));
+    assert.ok(javaFile, "TestMod.java must exist");
+    assert.ok(javaFile!.contents.includes("any_item") || javaFile!.contents.includes("Registries.ITEM"), "item must be registered");
+    const langFile = files.find((f) => f.path.endsWith("en_us.json"));
+    assert.ok(langFile, "lang file must exist");
+    assert.ok(langFile!.contents.includes("any_item") || langFile!.contents.includes("Any Item"), "item name in lang");
+  });
+
+  it("any block request produces a registered Fabric block", () => {
+    const spec = minimalTier1Spec({ blocks: [{ id: "any_block", name: "Any Block" }] });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const paths = files.map((f) => f.path);
+    assert.ok(paths.some((p) => p.includes("textures/block/any_block")), "block texture path must exist");
+    assert.ok(paths.some((p) => p.includes("models/block/any_block")), "block model path must exist");
+    assert.ok(paths.some((p) => p.includes("blockstates/any_block")), "blockstate path must exist");
+    const javaFile = files.find((f) => f.path.endsWith("TestMod.java"));
+    assert.ok(javaFile, "TestMod.java must exist");
+    assert.ok(javaFile!.contents.includes("any_block") || javaFile!.contents.includes("Registries.BLOCK"), "block must be registered");
+  });
+
+  it("unknown behavior does not throw", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "vague_item", name: "Something vague" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const plan = planFromIntent({
+      name: "Something vague",
+      description: "does something unknown",
+      category: "item",
+    });
+    assert.doesNotThrow(() => {
+      materializeTier1WithPlans(expanded, assets, [plan]);
+    }, "unknown behavior must not throw");
+    const files = materializeTier1WithPlans(expanded, assets, [plan]);
+    assert.ok(files.length > 0, "must produce files");
+    assert.ok(files.some((f) => f.path.includes("textures/item/vague_item")), "item assets must exist");
+  });
+
+  it("assets always exist in output for every item and block", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "ruby", name: "Ruby" }],
+      blocks: [{ id: "ruby_block", name: "Block of Ruby" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    for (const item of expanded.items) {
+      assert.ok(files.some((f) => f.path.includes(`textures/item/${item.id}`)), `texture for item ${item.id}`);
+      assert.ok(files.some((f) => f.path.includes(`models/item/${item.id}`)), `model for item ${item.id}`);
+    }
+    for (const block of expanded.blocks) {
+      assert.ok(files.some((f) => f.path.includes(`textures/block/${block.id}`)), `texture for block ${block.id}`);
+      assert.ok(files.some((f) => f.path.includes(`models/block/${block.id}`)), `model for block ${block.id}`);
+      assert.ok(files.some((f) => f.path.includes(`blockstates/${block.id}`)), `blockstate for block ${block.id}`);
+    }
+    assert.ok(files.some((f) => f.path.endsWith("en_us.json")), "lang file must exist");
   });
 });

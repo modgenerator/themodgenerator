@@ -2,6 +2,12 @@
  * Deterministic Execution Planner — Plane 3.
  * Closed set of execution primitives with credit cost and safety bounds.
  * No tier-based blocking; capability is universal; cost scales with complexity.
+ *
+ * PRIMITIVE INVARIANT
+ * - Primitives describe WHAT exists, not HOW complex it is
+ * - Missing primitives never block generation
+ * - Unsupported primitives degrade to no-op systems, never errors
+ * - Items and blocks MUST always fully materialize
  */
 
 export type Primitive =

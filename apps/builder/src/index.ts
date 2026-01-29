@@ -17,16 +17,31 @@ console.log("CWD:", process.cwd());
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.
  */
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { getPool, getJobById, updateJob } from "@themodgenerator/db";
-import { fromSpec } from "@themodgenerator/generator";
+import {
+  fromSpec,
+  composeTier1Stub,
+  materializeTier1,
+  materializeTier1WithPlans,
+  planFromIntent,
+  aggregateExecutionPlans,
+  buildAggregatedExpectationContract,
+  buildSafetyDisclosure,
+  expandIntentToScope,
+  expandPromptToScope,
+  getScopeBudgetResult,
+  type MaterializedFile,
+  type CreditBudget,
+} from "@themodgenerator/generator";
 import { validateSpec } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
-import { createHelloWorldSpec } from "@themodgenerator/spec";
+import { createHelloWorldSpec, expandSpecTier1 } from "@themodgenerator/spec";
 
 // Continue debug logging after imports are available
 console.log("FILES IN CWD:", readdirSync("."));
@@ -66,6 +81,67 @@ console.log("[BUILDER] Environment check:", {
 });
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
+
+/** Minimal valid 1x1 transparent PNG — canonical placeholder when no user texture. */
+const PLACEHOLDER_PNG_TRANSPARENT_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+/**
+ * Select canonical placeholder PNG by material semantics (wood, stone, metal, gem, generic).
+ * Vanilla-style, deterministic. Currently all materials use the same transparent 1x1 PNG;
+ * material-specific colored placeholders can be added here later.
+ */
+function getPlaceholderPngForMaterial(
+  _material: "wood" | "stone" | "metal" | "gem" | "generic"
+): Buffer {
+  return Buffer.from(PLACEHOLDER_PNG_TRANSPARENT_BASE64, "base64");
+}
+
+/**
+ * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
+ * .png files with empty contents are written as a canonical placeholder PNG (by material when provided).
+ * No Gradle; no validation. Used in build mode only.
+ */
+function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
+  for (const file of files) {
+    const { path: relPath, contents, placeholderMaterial } = file;
+    const fullPath = join(workDir, relPath);
+    mkdirSync(dirname(fullPath), { recursive: true });
+    if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
+      const material = placeholderMaterial ?? "generic";
+      const placeholderPng = getPlaceholderPngForMaterial(material);
+      writeFileSync(fullPath, placeholderPng);
+    } else {
+      writeFileSync(fullPath, contents, "utf8");
+    }
+  }
+}
+
+/**
+ * Copy vendored Gradle wrapper into outDir so ./gradlew build can run.
+ * Resolves template path relative to this file (works in Docker: /app/templates/fabric-wrapper).
+ */
+function copyFabricWrapperTo(outDir: string): void {
+  const currentFile = fileURLToPath(import.meta.url);
+  const repoRoot = join(dirname(currentFile), "../../../");
+  const templateDir = join(repoRoot, "templates", "fabric-wrapper");
+  mkdirSync(join(outDir, "gradle", "wrapper"), { recursive: true });
+  copyFileSync(join(templateDir, "gradlew"), join(outDir, "gradlew"));
+  copyFileSync(join(templateDir, "gradlew.bat"), join(outDir, "gradlew.bat"));
+  copyFileSync(
+    join(templateDir, "gradle", "wrapper", "gradle-wrapper.properties"),
+    join(outDir, "gradle", "wrapper", "gradle-wrapper.properties")
+  );
+  const wrapperJar = join(templateDir, "gradle", "wrapper", "gradle-wrapper.jar");
+  if (existsSync(wrapperJar)) {
+    copyFileSync(wrapperJar, join(outDir, "gradle", "wrapper", "gradle-wrapper.jar"));
+  }
+  try {
+    chmodSync(join(outDir, "gradlew"), 0o755);
+  } catch {
+    // Ignore chmod on Windows
+  }
+}
 
 /**
  * Execute a Gradle command with timeout, streaming, and proper error handling.
@@ -195,11 +271,94 @@ async function main(): Promise<void> {
       process.exit(1);
     }
     console.log("[BUILDER] Spec validation passed");
-    
-    console.log("[BUILDER] Generating Fabric project from spec...");
-    fromSpec(specToUse, workDir);
-    console.log("[BUILDER] Fabric project generated");
-    
+
+    if (mode === "test") {
+      console.log("[BUILDER] Generating Fabric project (hello-world) from spec...");
+      fromSpec(specToUse, workDir);
+      console.log("[BUILDER] Fabric project generated");
+    } else {
+      console.log("[BUILDER] Build mode: generating Tier 1 materialized project...");
+      const expanded = expandSpecTier1(specToUse);
+      const assets = composeTier1Stub(expanded.descriptors);
+      const prompt = job.prompt ?? "";
+      // Scope-based credits (before build). Never block or reduce scope.
+      const scopeFromPrompt = expandPromptToScope(prompt);
+      const scopeFromItems = expanded.items.flatMap((item, i) =>
+        expandIntentToScope({
+          name: item.name,
+          description: i === 0 && prompt.length > 0 ? prompt : undefined,
+          category: "item",
+          material: item.material ?? "generic",
+        })
+      );
+      const scopeFromBlocks = expanded.blocks.flatMap((b) =>
+        expandIntentToScope({
+          name: b.name,
+          description: undefined,
+          category: "block",
+          material: b.material ?? "generic",
+        })
+      );
+      const fullScope = [...scopeFromPrompt, ...scopeFromItems, ...scopeFromBlocks];
+      const budget: CreditBudget = 30;
+      const scopeResult = getScopeBudgetResult(fullScope, budget);
+      const itemPlans = expanded.items.map((item, i) =>
+        planFromIntent({
+          name: item.name,
+          description: i === 0 && prompt.length > 0 ? prompt : undefined,
+          category: "item",
+          material: item.material ?? "generic",
+        })
+      );
+      const blockPlans = expanded.blocks.map((b) =>
+        planFromIntent({
+          name: b.name,
+          description: undefined,
+          category: "block",
+          material: b.material ?? "generic",
+        })
+      );
+      const allPlans = [...itemPlans, ...blockPlans];
+      const aggregatedPlan = aggregateExecutionPlans(allPlans);
+      const expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
+      const safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
+      if (process.env.NODE_ENV !== "production") {
+        if (aggregatedPlan.systems.length === 0 && fullScope.length > 0) {
+          throw new Error(
+            "Invariant violation: scope exists without planned systems"
+          );
+        }
+      }
+      console.log("[BUILDER] --- Build explanation ---");
+      console.log("[BUILDER] executionPlan systems:", aggregatedPlan.systems.join(", ") || "none");
+      console.log("[BUILDER] executionPlan explanation:", aggregatedPlan.explanation.join(" | ") || "none");
+      if (aggregatedPlan.upgradePath?.length) {
+        console.log("[BUILDER] executionPlan upgradePath:", aggregatedPlan.upgradePath.join("; "));
+      }
+      if (aggregatedPlan.futureExpansion?.length) {
+        console.log("[BUILDER] executionPlan futureExpansion:", aggregatedPlan.futureExpansion.join("; "));
+      }
+      console.log("[BUILDER] expectationContract whatItDoes:", expectationContract.whatItDoes.join("; "));
+      console.log("[BUILDER] expectationContract howYouUseIt:", expectationContract.howYouUseIt.join("; "));
+      console.log("[BUILDER] expectationContract limits:", expectationContract.limits.join("; "));
+      console.log("[BUILDER] expectationContract scalesWithCredits:", expectationContract.scalesWithCredits.join("; "));
+      console.log("[BUILDER] safetyDisclosure statements:", safetyDisclosure.statements.join("; ") || "none");
+      console.log("[BUILDER] scopeSummary:", scopeResult.scopeSummary.join(", "));
+      console.log("[BUILDER] totalCredits:", scopeResult.totalCredits);
+      console.log("[BUILDER] fitsBudget:", scopeResult.fitsBudget);
+      if (scopeResult.explanation) {
+        console.log("[BUILDER] explanation:", scopeResult.explanation);
+      }
+      console.log("[BUILDER] --- End build explanation ---");
+      const files =
+        expanded.items.length > 0 && itemPlans.length > 0
+          ? materializeTier1WithPlans(expanded, assets, itemPlans)
+          : materializeTier1(expanded, assets);
+      writeMaterializedFiles(files, workDir);
+      copyFabricWrapperTo(workDir);
+      console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");
+    }
+
     if (mode === "test") {
       console.log("[BUILDER] Test mode: skipping Gradle execution");
       const requiredFiles = [

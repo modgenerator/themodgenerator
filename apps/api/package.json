@@ -12,6 +12,7 @@
   "dependencies": {
     "@themodgenerator/db": "*",
     "@themodgenerator/gcp": "*",
+    "@themodgenerator/generator": "*",
     "@themodgenerator/spec": "*",
     "@themodgenerator/validator": "*",
     "fastify": "^4.28.1",

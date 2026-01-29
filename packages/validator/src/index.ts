@@ -4,6 +4,14 @@ import { validateSurvivalIntegration } from "./survival-integration.js";
 import { validateFabricVersion } from "./fabric-version.js";
 import { validateTextureGate } from "./texture-gate.js";
 import { validateSpecConsistency } from "./spec-consistency.js";
+import {
+  validateTier1,
+  TIER1_NO_FEATURES,
+  TIER1_UNKNOWN_FEATURE,
+  TIER1_FORBIDDEN_FEATURE,
+  TIER1_ORES_FORBIDDEN,
+  TIER1_LOOT_BLOCK_ENTITY_FORBIDDEN,
+} from "./validate-tier1.js";
 
 export interface ValidationReport {
   valid: boolean;
@@ -11,9 +19,10 @@ export interface ValidationReport {
   gate?: string;
 }
 
-/** Run all validation gates. First failure returns immediately. */
+/** Run all validation gates. Tier 1 gate runs first. First failure returns immediately. */
 export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): ValidationReport {
   const gates = [
+    { name: "tier1", fn: () => validateTier1(spec) },
     { name: "spec-consistency", fn: () => validateSpecConsistency(spec) },
     { name: "fabric-version", fn: () => validateFabricVersion(spec) },
     { name: "forbidden-mechanics", fn: () => validateForbiddenMechanics(spec, options?.prompt) },
@@ -29,4 +38,16 @@ export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): Va
   return { valid: true };
 }
 
-export { validateForbiddenMechanics, validateSurvivalIntegration, validateFabricVersion, validateTextureGate, validateSpecConsistency };
+export {
+  validateTier1,
+  TIER1_NO_FEATURES,
+  TIER1_UNKNOWN_FEATURE,
+  TIER1_FORBIDDEN_FEATURE,
+  TIER1_ORES_FORBIDDEN,
+  TIER1_LOOT_BLOCK_ENTITY_FORBIDDEN,
+  validateForbiddenMechanics,
+  validateSurvivalIntegration,
+  validateFabricVersion,
+  validateTextureGate,
+  validateSpecConsistency,
+};

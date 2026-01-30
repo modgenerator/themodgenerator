@@ -10,6 +10,7 @@ RUN mkdir -p ./certs
 RUN npm install && \
     npm run build -w @themodgenerator/spec && \
     npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp && \
+    npm run build -w @themodgenerator/generator && \
     npm run build -w @themodgenerator/api
 
 FROM node:20-bookworm-slim

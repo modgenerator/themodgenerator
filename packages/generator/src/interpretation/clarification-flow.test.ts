@@ -94,6 +94,19 @@ describe("clarificationGate", () => {
   });
 });
 
+describe("interpretWithClarification invariants", () => {
+  it("never throws on user input and always returns request_clarification or proceed", () => {
+    const inputs = ["", "   ", "magic wand", "aesho faesf", "ice cream", null as unknown as string, undefined as unknown as string];
+    for (const input of inputs) {
+      let response;
+      assert.doesNotThrow(() => {
+        response = interpretWithClarification(input);
+      }, `interpretWithClarification must not throw for: ${JSON.stringify(input)}`);
+      assert.ok(response!.type === "request_clarification" || response!.type === "proceed");
+    }
+  });
+});
+
 describe("interpretWithClarification + interpretItemOrBlock (integration)", () => {
   it('"aesho faesf asdofh" → clarification; no generation', () => {
     const response = interpretWithClarification("aesho faesf asdofh");

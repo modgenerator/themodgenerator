@@ -1,3 +1,11 @@
+/**
+ * Generator package — single source of truth for interpretation, texture, behavior, world.
+ * Required public exports (backend/API/frontend must see):
+ * - interpretation: interpretWithClarification, analyzePromptIntent
+ * - texture: synthesizeTexture, rasterizeTexture, generatePreviewTextures
+ * - behavior: synthesizeBehavior
+ * - world: synthesizeWorldIntegration
+ */
 export { fromSpec } from "./from-spec.js";
 export { emitHelloWorld } from "./templates/hello-world.js";
 export type { AssetKey } from "./composer-stub.js";

@@ -53,14 +53,15 @@ function toDisplayName(prompt: string): string {
     .join(" ");
 }
 
-/** Semantic decomposition: map prompt keywords to semantic tags + aesthetic. */
+/** Semantic decomposition: map prompt keywords to semantic tags + aesthetic. Unknown → evocative fantasy. */
 function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticProfile; kind: InterpretedKind } {
   const text = prompt.toLowerCase().trim();
   const tags: SemanticTag[] = [];
   let materialHint: AestheticProfile["materialHint"] = "organic";
   const colorPalette: string[] = [];
+  const overlayHints: string[] = [];
   let glow = false;
-  let animationHint: AestheticProfile["animationHint"];
+  let animationHint: AestheticProfile["animationHint"] | undefined;
   let kind: InterpretedKind = "item";
 
   // Block-like: brick, block, dirt, stone, ore, wall, slab, stairs
@@ -80,11 +81,19 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
     tags.push("food", "edible", "consumable");
   }
 
-  // Cold
-  if (/\b(ice|ice cream|cold|frost|snow|freeze|frozen)\b/.test(text)) {
+  // Ice cream: drip animation, pastel palette
+  if (/\b(ice\s*cream|ice cream)\b/.test(text)) {
     tags.push("cold");
     materialHint = "ice";
-    colorPalette.push("#B0E0E6", "#87CEEB", "#ADD8E6", "#E0FFFF");
+    animationHint = "drip";
+    if (!colorPalette.length) colorPalette.push("#FFF5EE", "#FFE4E1", "#DEB887", "#F5DEB3");
+  }
+
+  // Cold (generic, if not already set by ice cream)
+  if (/\b(ice|cold|frost|snow|freeze|frozen)\b/.test(text) && !animationHint) {
+    tags.push("cold");
+    if (materialHint === "organic") materialHint = "ice";
+    if (!colorPalette.length) colorPalette.push("#B0E0E6", "#87CEEB", "#ADD8E6", "#E0FFFF");
   }
 
   // Hot / fire
@@ -95,34 +104,54 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
     glow = true;
   }
 
-  // Radioactive / dangerous / poison
-  if (/\b(radioactive|poison|toxic|curse|cursed|dangerous|deadly)\b/.test(text)) {
+  // Radioactive / dangerous / poison — sickly green-yellow, emissive, overlay
+  if (/\b(radioactive|poison|toxic)\b/.test(text)) {
+    tags.push("dangerous", "radioactive");
+    glow = true;
+    overlayHints.push("radioactive_speckles");
+    if (!colorPalette.length) colorPalette.push("#9ACD32", "#ADFF2F", "#7CFC00", "#556B2F");
+    if (materialHint === "organic") materialHint = "energy";
+  }
+  if (/\b(curse|cursed|dangerous|deadly)\b/.test(text)) {
     tags.push("dangerous");
     glow = true;
-    colorPalette.push("#32CD32", "#ADFF2F", "#7CFC00", "#00FF00");
-    if (!materialHint || materialHint === "organic") materialHint = "energy";
+    if (!colorPalette.length) colorPalette.push("#32CD32", "#ADFF2F", "#7CFC00", "#00FF00");
+    if (materialHint === "organic") materialHint = "energy";
   }
 
-  // Magical / glow / dream
-  if (/\b(magic|magical|glow|glowing|dream|enchanted|arcane|mystic)\b/.test(text)) {
+  // Magical / glow / dream / "feels magical"
+  if (/\b(magic|magical|glow|glowing|dream|enchanted|arcane|mystic|feels?\s+magical)\b/.test(text)) {
     tags.push("magical");
     glow = true;
-    animationHint = "pulse";
-    colorPalette.push("#9370DB", "#8A2BE2", "#DA70D6", "#EE82EE");
+    animationHint = animationHint ?? "pulse";
+    if (!colorPalette.length) colorPalette.push("#9370DB", "#8A2BE2", "#DA70D6", "#EE82EE");
     materialHint = "crystal";
   }
 
+  // Blue color intent ("glowing blue thing", "blue")
+  if (/\b(blue|azure|cyan)\b/.test(text)) {
+    if (!colorPalette.length) colorPalette.push("#4169E1", "#1E90FF", "#00BFFF", "#87CEEB");
+    if (materialHint === "organic") materialHint = "crystal";
+  }
+
   // Cute / soft
-  if (/\b(cute|soft|fluffy|plush|sweet)\b/.test(text)) {
+  if (/\b(cute|soft|fluffy|plush|sweet|thing that feels)\b/.test(text)) {
     tags.push("cute");
     if (!colorPalette.length) colorPalette.push("#FFB6C1", "#FFC0CB", "#FFE4E1");
   }
 
-  // Metallic / weapon / tool
-  if (/\b(metal|metallic|sword|weapon|tool|armor|ingot|nugget)\b/.test(text)) {
+  // Gold / golden (e.g. cursed golden spoon) — golden wins palette when present
+  if (/\b(gold|golden|gilded)\b/.test(text)) {
+    colorPalette.length = 0;
+    colorPalette.push("#FFD700", "#DAA520", "#B8860B", "#D4AF37");
+    if (materialHint === "organic") materialHint = "metal";
+  }
+
+  // Metallic / weapon / tool / spoon
+  if (/\b(metal|metallic|sword|weapon|tool|armor|ingot|nugget|spoon|fork|knife)\b/.test(text)) {
     tags.push("metallic");
     if (/\b(sword|weapon|blade)\b/.test(text)) tags.push("weapon");
-    if (/\b(tool|pick|axe|shovel)\b/.test(text)) tags.push("tool");
+    if (/\b(tool|pick|axe|shovel|spoon|fork|knife)\b/.test(text)) tags.push("tool");
     if (!materialHint || materialHint === "organic") materialHint = "metal";
     if (!colorPalette.length) colorPalette.push("#C0C0C0", "#A8A8A8", "#808080");
   }
@@ -130,7 +159,7 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
   // Organic / wood / stone
   if (/\b(wood|wooden|organic|plant|leaf|vine)\b/.test(text)) {
     tags.push("organic");
-    if (!materialHint || materialHint === "ice") materialHint = "wood";
+    if (materialHint === "organic" || materialHint === "ice") materialHint = "wood";
     if (!colorPalette.length) colorPalette.push("#8B7355", "#6B5344", "#4A3728");
   }
   if (/\b(stone|rock|gem|ruby|sapphire|diamond)\b/.test(text)) {
@@ -140,7 +169,7 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
       materialHint = "gem";
       glow = true;
       colorPalette.push("#DC143C", "#4169E1", "#2E8B57", "#50C878");
-    } else if (!materialHint || materialHint === "organic") materialHint = "stone";
+    } else if (materialHint === "organic") materialHint = "stone";
   }
 
   // Wet / dry
@@ -150,7 +179,19 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
   }
   if (/\b(dry|sand|desert)\b/.test(text)) tags.push("dry");
 
-  // Fallback palette and material
+  // Evocative fallback: nonsense/unknown → magical, organic, strange; crystal + purple + glow. NO gray cube.
+  const hasMeaningfulTags = tags.some((t) => t !== "organic" && t !== "placeable" && t !== "block");
+  if (kind === "item" && !hasMeaningfulTags) {
+    tags.length = 0;
+    tags.push("magical", "organic", "strange");
+    materialHint = "crystal";
+    colorPalette.length = 0;
+    colorPalette.push("#9370DB", "#8A2BE2", "#DA70D6", "#4B0082");
+    glow = true;
+    animationHint = "pulse";
+  }
+
+  // Fallback palette and material (only when still empty)
   if (colorPalette.length === 0) {
     colorPalette.push("#8B7355", "#6B5344", "#4A3728", "#3D2E24");
   }
@@ -158,19 +199,47 @@ function decompose(prompt: string): { tags: SemanticTag[]; aesthetic: AestheticP
 
   return {
     tags: tags.length > 0 ? tags : (["organic", "placeable"] as SemanticTag[]),
-    aesthetic: { materialHint, colorPalette, glow, animationHint },
+    aesthetic: {
+      materialHint,
+      colorPalette,
+      glow,
+      animationHint,
+      overlayHints: overlayHints.length > 0 ? overlayHints : undefined,
+    },
     kind,
   };
 }
 
-/** Synthesize gameplay traits from semantic tags. */
+/** Block material from tags + aesthetic. */
+function inferBlockMaterial(tags: SemanticTag[], glow: boolean): BlockMaterial {
+  if (tags.includes("metallic")) return "metal";
+  if (tags.includes("magical") || glow) return "magic";
+  if (tags.includes("organic") && !tags.includes("stone")) return "organic";
+  return "stone";
+}
+
+/** Synthesize gameplay traits from semantic tags. Believable, not balanced: dangerous → damage/effects. */
 function synthesizeGameplay(tags: SemanticTag[], kind: InterpretedKind): GameplayTraits {
   const out: GameplayTraits = {};
   if (tags.includes("food") || tags.includes("edible") || tags.includes("consumable")) {
-    out.food = { hunger: 4, saturation: 0.3, effects: [] };
+    out.food = {
+      hunger: 4,
+      saturation: 0.3,
+      effects: tags.includes("dangerous") || tags.includes("radioactive")
+        ? [{ type: "status_effect", duration: 100, amplifier: 0 }]
+        : [],
+    };
   }
   if (tags.includes("weapon")) {
-    out.weapon = { damage: 6, speed: 1.6, effects: [] };
+    out.weapon = {
+      damage: 6,
+      speed: 1.6,
+      effects: tags.includes("dangerous") ? [{ type: "status_effect", duration: 80, amplifier: 0 }] : [],
+    };
+  }
+  // Dangerous but not weapon/food → treat as harmful tool/object (believable damage)
+  if (tags.includes("dangerous") && !out.weapon && !out.food) {
+    out.weapon = { damage: 4, speed: 1.4, effects: [{ type: "status_effect", duration: 60, amplifier: 0 }] };
   }
   if (kind === "block" || tags.includes("block") || tags.includes("placeable")) {
     out.block = { solid: true, gravity: false, interactive: false };
@@ -198,12 +267,18 @@ function buildItemPrimitive(
           ? "magic"
           : "misc";
   item.category = category;
-  item.visual.textureHints = [aesthetic.materialHint, ...aesthetic.colorPalette.slice(0, 2)];
-  item.visual.glow = aesthetic.glow;
+  item.visual.textureHints = [aesthetic.materialHint, ...(aesthetic.colorPalette ?? []).slice(0, 2)];
+  item.visual.glow = !!aesthetic.glow;
   item.visual.animated = !!aesthetic.animationHint;
   if (gameplay.food) {
     item.behavior.onConsume = [{ type: "heal", value: gameplay.food.hunger * 2 }];
     item.stackSize = 16;
+  }
+  // Magical → always visible or mechanical feedback (glow + passive effect)
+  if (tags.includes("magical")) {
+    item.visual.glow = true;
+    item.behavior.passive = item.behavior.passive ?? [];
+    item.behavior.passive.push({ type: "particle", value: 1 });
   }
   return item;
 }
@@ -218,17 +293,10 @@ function buildBlockPrimitive(
   aesthetic: AestheticProfile
 ): BlockPrimitive {
   const block = defaultBlockPrimitive(id, displayName);
-  const material: BlockMaterial = tags.includes("metallic")
-    ? "metal"
-    : tags.includes("magical") || aesthetic.glow
-      ? "magic"
-      : tags.includes("organic") && !tags.includes("stone")
-        ? "organic"
-        : "stone";
-  block.material = material;
-  block.hardness = physical.hardness;
-  block.visual.textureHints = [aesthetic.materialHint, ...aesthetic.colorPalette.slice(0, 2)];
-  block.visual.emissive = aesthetic.glow;
+  block.material = inferBlockMaterial(tags, !!aesthetic.glow);
+  block.hardness = physical.hardness ?? 1;
+  block.visual.textureHints = [aesthetic.materialHint, ...(aesthetic.colorPalette ?? []).slice(0, 2)];
+  block.visual.emissive = !!aesthetic.glow;
   if (gameplay.block) {
     block.behavior = {};
   }
@@ -236,11 +304,13 @@ function buildBlockPrimitive(
 }
 
 /**
- * Interpret any prompt as an item or block. Never returns null; never throws.
- * Low semantic confidence → synthesize reasonable fantasy interpretation.
+ * Interpret any prompt as an item or block.
+ * INVARIANT: Never throws. Never returns null. Always returns a populated result (kind "item" | "block").
+ * Empty/nonsense input is normalized to evocative "mystery item" and then decomposed.
  */
 export function interpretItemOrBlock(prompt: string): InterpretedResult {
-  const safePrompt = typeof prompt === "string" && prompt.trim() ? prompt.trim() : "mystery item";
+  const safePrompt =
+    prompt != null && typeof prompt === "string" && prompt.trim().length > 0 ? prompt.trim() : "mystery item";
   const id = slugify(safePrompt) || "mystery_item";
   const displayName = toDisplayName(safePrompt);
 

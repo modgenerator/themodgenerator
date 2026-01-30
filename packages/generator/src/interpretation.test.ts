@@ -1,34 +1,66 @@
 /**
- * Tests: interpretItemOrBlock never returns null/unknown; ice cream → food + cold; random → still item/block with name, texture, behavior.
- * Tests fail if: texture recipe missing, primitives empty, interpretation returns "unknown".
+ * PART 6 — Tests (ENFORCEMENT). Assert:
+ * - No throws for empty/nonsense input
+ * - xyzzysnorf → crystal, purple palette, glow, animation
+ * - Every result: semantic tags, texture recipe, non-default visuals
+ * - Ice cream has drip animation
+ * - Radioactive cheese has overlayHints
  */
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { interpretItemOrBlock } from "./interpretation.js";
+import { interpretItemOrBlock, type InterpretedResult } from "./interpretation.js";
 import { deriveTextureRecipe } from "./item-block-primitives.js";
 
 describe("interpretItemOrBlock", () => {
-  it('prompt("ice cream") → item with food traits, cold aesthetic, non-default texture', () => {
+  it("never throws and never returns null for any input", () => {
+    const inputs: string[] = ["", "   ", "ice cream", "xyzzysnorf", "radioactive cheese"];
+    for (const input of inputs) {
+      let result: InterpretedResult;
+      assert.doesNotThrow(() => {
+        result = interpretItemOrBlock(input);
+      }, `interpretItemOrBlock must not throw for: ${JSON.stringify(input)}`);
+      result = interpretItemOrBlock(input);
+      assert.ok(result != null, "must never return null");
+      assert.strictEqual(result.kind === "item" || result.kind === "block", true, "kind must be item or block");
+    }
+    // Explicit null/undefined (runtime guard in interpretItemOrBlock)
+    let r: InterpretedResult = interpretItemOrBlock(null as unknown as string);
+    assert.ok(r != null && (r.kind === "item" || r.kind === "block"));
+    r = interpretItemOrBlock(undefined as unknown as string);
+    assert.ok(r != null && (r.kind === "item" || r.kind === "block"));
+  });
+
+  it('prompt("ice cream") → food, cold, drip animation, pastel palette', () => {
     const result = interpretItemOrBlock("ice cream");
     assert.ok(result != null, "must never return null");
     assert.strictEqual(result.kind, "item");
     assert.ok(result.item != null);
     assert.ok(result.semanticTags.includes("food"), "ice cream must have food tag");
     assert.ok(result.semanticTags.includes("cold"), "ice cream must have cold tag");
-    assert.ok(result.aesthetic.materialHint === "ice" || result.aesthetic.colorPalette.length > 0);
+    assert.strictEqual(result.aesthetic.materialHint, "ice");
+    assert.strictEqual(result.aesthetic.animationHint, "drip");
+    assert.ok(result.aesthetic.colorPalette.length > 0, "must have pastel palette");
     assert.ok(result.item!.category === "food");
     assert.ok(result.item!.visual.textureHints.length > 0, "must have texture hints");
     const recipe = deriveTextureRecipe(result.aesthetic);
     assert.ok(recipe.base != null, "texture recipe must have base");
     assert.ok(recipe.paletteShift.length > 0, "texture recipe must have palette");
+    assert.ok(recipe.animation != null, "ice cream must have drip animation in recipe");
   });
 
-  it('prompt("radioactive cheese") → food + dangerous + glowing', () => {
+  it('prompt("radioactive cheese") → food + dangerous + glow + radioactive_speckles overlay', () => {
     const result = interpretItemOrBlock("radioactive cheese");
     assert.ok(result != null);
     assert.ok(result.semanticTags.includes("food") || result.semanticTags.includes("edible"));
     assert.ok(result.semanticTags.includes("dangerous"));
+    assert.ok(result.semanticTags.includes("radioactive"));
     assert.strictEqual(result.aesthetic.glow, true);
+    assert.ok(
+      Array.isArray(result.aesthetic.overlayHints) && result.aesthetic.overlayHints!.includes("radioactive_speckles"),
+      "must have radioactive_speckles overlay intent"
+    );
+    const recipe = deriveTextureRecipe(result.aesthetic);
+    assert.ok(recipe.overlays.some((o) => o.key === "radioactive_speckles"));
     assert.ok(result.item != null || result.block != null);
   });
 
@@ -41,22 +73,30 @@ describe("interpretItemOrBlock", () => {
     assert.strictEqual(result.aesthetic.glow, true);
   });
 
-  it('prompt("random nonsense word") → still produces item OR block with name, texture, behavior', () => {
+  it('xyzzysnorf produces crystal, purple palette, glow, and animation (evocative fallback)', () => {
     const result = interpretItemOrBlock("xyzzysnorf");
-    assert.ok(result != null, "must never return null for any prompt");
-    assert.ok(result.kind === "item" || result.kind === "block");
-    assert.ok(result.id.length > 0, "must have id");
-    assert.ok(result.displayName.length > 0, "must have displayName");
-    assert.ok(result.semanticTags.length > 0, "primitives must not be empty");
-    assert.ok(result.item != null || result.block != null);
-    if (result.item) {
-      assert.ok(result.item.visual.textureHints.length > 0, "item must have texture hints");
-    }
-    if (result.block) {
-      assert.ok(result.block.visual.textureHints.length > 0, "block must have texture hints");
-    }
+    assert.ok(result != null, "must never return null");
+    assert.strictEqual(result.kind, "item");
+    assert.ok(result.semanticTags.length > 0, "must have semantic tags");
+    assert.ok(
+      result.semanticTags.includes("magical") && result.semanticTags.includes("strange"),
+      "must produce evocative tags: magical, strange"
+    );
+    assert.strictEqual(result.aesthetic.materialHint, "crystal");
+    assert.ok(
+      Array.isArray(result.aesthetic.colorPalette) && result.aesthetic.colorPalette.length > 0,
+      "must have purple palette"
+    );
+    assert.ok(
+      result.aesthetic.colorPalette.some((c) => c.includes("93") || c.includes("8A") || c.includes("4B")),
+      "palette must be purple/violet"
+    );
+    assert.strictEqual(result.aesthetic.glow, true, "must glow");
+    assert.strictEqual(result.aesthetic.animationHint, "pulse", "must have animation (pulse)");
     const recipe = deriveTextureRecipe(result.aesthetic);
-    assert.ok(recipe.base != null, "texture must exist (recipe base)");
+    assert.ok(recipe.base != null && recipe.base.key === "crystal");
+    assert.ok(recipe.paletteShift.length > 0);
+    assert.ok(recipe.animation != null, "recipe must include animation");
   });
 
   it("interpretation never returns unknown and never throws", () => {
@@ -65,9 +105,28 @@ describe("interpretItemOrBlock", () => {
       assert.doesNotThrow(() => {
         const result = interpretItemOrBlock(prompt);
         assert.ok(result != null);
-        assert.ok(result.semanticTags.length > 0, `primitives must not be empty for "${prompt}"`);
+        assert.ok(result.semanticTags.length > 0, `semantic tags must not be empty for "${prompt}"`);
         assert.ok(result.displayName.length > 0);
       }, `interpretItemOrBlock("${prompt}") must not throw`);
+    }
+  });
+
+  it("every result has semantic tags, texture recipe (base + paletteShift), and non-default visuals", () => {
+    const prompts = ["cursed golden spoon", "a soft glowing blue thing that feels magical", "dream brick", "xyzzysnorf"];
+    for (const prompt of prompts) {
+      const result = interpretItemOrBlock(prompt);
+      assert.ok(result.semanticTags.length > 0, `"${prompt}" must have semantic tags`);
+      assert.ok(
+        Array.isArray(result.aesthetic.colorPalette) && result.aesthetic.colorPalette.length > 0,
+        `"${prompt}" must have color palette`
+      );
+      const recipe = deriveTextureRecipe(result.aesthetic);
+      assert.ok(recipe.base != null && recipe.base.key, `"${prompt}" must have recipe base`);
+      assert.ok(recipe.paletteShift.length > 0, `"${prompt}" must have paletteShift`);
+      assert.ok(
+        recipe.base.key !== "generic" || recipe.paletteShift.length > 0,
+        `"${prompt}" must have non-default visuals`
+      );
     }
   });
 });

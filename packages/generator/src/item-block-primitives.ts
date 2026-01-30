@@ -13,37 +13,19 @@
 
 // ============== EXHAUSTIVE PRIMITIVE AXES ==============
 
-/** Semantic axes (open-ended). Interpret > enumerate. */
-export type SemanticTag =
-  | "food"
-  | "weapon"
-  | "tool"
-  | "block"
-  | "stone"
-  | "organic"
-  | "metallic"
-  | "magical"
-  | "technological"
-  | "cute"
-  | "dangerous"
-  | "ancient"
-  | "futuristic"
-  | "cold"
-  | "hot"
-  | "radioactive"
-  | "wet"
-  | "dry"
-  | "edible"
-  | "placeable"
-  | "consumable"
-  | "wearable";
+/**
+ * Semantic axes (open-ended string). Interpret > enumerate.
+ * Examples: food, weapon, tool, block, organic, metallic, crystal, magical, dangerous, cute,
+ * ancient, futuristic, strange, cold, hot, radioactive, edible, placeable, wearable.
+ */
+export type SemanticTag = string;
 
-/** Physical axes: hardness, weight, light, transparency. */
+/** Physical axes: hardness, weight, light, transparency. All optional. */
 export type PhysicalTraits = {
-  hardness: number;
-  weight: "light" | "medium" | "heavy";
-  luminosity: number;
-  transparency: number;
+  hardness?: number;
+  weight?: "light" | "medium" | "heavy";
+  luminosity?: number;
+  transparency?: number;
 };
 
 /** Effect for food/weapon (type + optional duration/amplifier). */
@@ -57,30 +39,20 @@ export type GameplayEffect = {
 export type GameplayTraits = {
   food?: { hunger: number; saturation: number; effects?: GameplayEffect[] };
   weapon?: { damage: number; speed: number; effects?: GameplayEffect[] };
-  block?: { solid: boolean; gravity: boolean; interactive: boolean };
+  block?: { solid: boolean; gravity?: boolean; interactive?: boolean };
 };
 
-/** Material hint for texture derivation. */
-export type MaterialHint =
-  | "ice"
-  | "cream"
-  | "metal"
-  | "stone"
-  | "wood"
-  | "gem"
-  | "flesh"
-  | "slime"
-  | "energy"
-  | "organic"
-  | "crystal"
-  | "fabric";
+/** Material hint is open-ended string; this alias exists for backward compatibility. */
+export type MaterialHint = string;
 
-/** Aesthetic axes (CRITICAL): drives texture recipe so assets meet user expectations. */
+/** Aesthetic axes (CRITICAL): drives texture recipe. materialHint is open-ended string. NO gray cubes; NO default texture. */
 export type AestheticProfile = {
-  materialHint: MaterialHint;
+  materialHint: string;
   colorPalette: string[];
-  glow: boolean;
+  glow?: boolean;
   animationHint?: "pulse" | "drip" | "sparkle" | "wave";
+  /** Overlay intent for asset pipeline (e.g. radioactive_speckles, frosting, cracks). */
+  overlayHints?: string[];
 };
 
 /** Texture source: base material or procedural overlay. */
@@ -246,7 +218,7 @@ export function defaultBlockPrimitive(id: string, displayName: string): BlockPri
   };
 }
 
-/** Default physical traits when not specified. */
+/** Default physical traits when not specified. All axes have defaults so gameplay is believable. */
 export function defaultPhysicalTraits(): PhysicalTraits {
   return {
     hardness: 1,
@@ -267,18 +239,21 @@ export function defaultAestheticProfile(): AestheticProfile {
 
 /**
  * Derive texture recipe from aesthetic profile.
- * Combines base material texture + overlays + palette shift + optional animation.
- * Guarantees every item/block has a recipe that visually matches user intent; no placeholders.
+ * Every item/block MUST have a recipe. Never return incomplete recipe.
+ * Rules: base (from materialHint), paletteShift, glow → emissive overlay, animationHint → procedural overlay, overlayHints → overlays.
  */
 export function deriveTextureRecipe(profile: AestheticProfile): AestheticTextureRecipe {
   const base: TextureSource = {
     type: "material",
-    key: profile.materialHint,
-    description: `base ${profile.materialHint}`,
+    key: profile.materialHint || "crystal",
+    description: `base ${profile.materialHint || "crystal"}`,
   };
   const overlays: TextureSource[] = [];
   if (profile.glow) {
     overlays.push({ type: "overlay", key: "emissive_glow", description: "glow overlay" });
+  }
+  for (const hint of profile.overlayHints ?? []) {
+    if (hint) overlays.push({ type: "overlay", key: hint, description: hint });
   }
   if (profile.animationHint) {
     overlays.push({
@@ -287,9 +262,12 @@ export function deriveTextureRecipe(profile: AestheticProfile): AestheticTexture
       description: `${profile.animationHint} animation`,
     });
   }
-  const paletteShift = profile.colorPalette.slice(0, 4);
+  const paletteShift =
+    profile.colorPalette?.length > 0
+      ? profile.colorPalette.slice(0, 4)
+      : ["#9370DB", "#8A2BE2", "#DA70D6", "#4B0082"];
   const animation: AnimationSpec | undefined = profile.animationHint
-    ? { type: profile.animationHint, speed: 1 }
+    ? { type: profile.animationHint as AnimationSpec["type"], speed: 1 }
     : undefined;
   return {
     base,

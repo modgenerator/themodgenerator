@@ -1,12 +1,30 @@
 /**
- * Palette and motif generation. NEVER fails.
- * When LLM is unavailable, falls back to deterministic heuristic generation.
- * Nonsense prompts return evocative palettes (fantasy default, never grayscale).
- * Seed guarantees repeatability.
+ * Palette and motif generation (LLM-like). NEVER throws. NEVER returns grayscale-only palettes.
+ * MUST ALWAYS return ≥ 3 colors. Nonsense → evocative fantasy palettes.
+ * When LLM unavailable, deterministic heuristics. Motifs describe visual intent.
  */
 
 import type { SemanticTag } from "../item-block-primitives.js";
 import type { AestheticProfile } from "../item-block-primitives.js";
+
+/** True if hex is grayscale (R ≈ G ≈ B within tolerance). */
+function isGrayHex(hex: string, tolerance = 25): boolean {
+  const m = hex.replace(/^#/, "").match(/^([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
+  if (!m) return true;
+  const r = parseInt(m[1], 16);
+  const g = parseInt(m[2], 16);
+  const b = parseInt(m[3], 16);
+  return Math.max(r, g, b) - Math.min(r, g, b) <= tolerance;
+}
+
+/** MUST NEVER return grayscale-only: at least one color must have distinct hue. */
+function ensureNotGrayscaleOnly(colors: string[], seed: string): string[] {
+  if (colors.length === 0) return FANTASY_PALETTES[0].slice(0, 5);
+  const allGray = colors.every((c) => isGrayHex(c));
+  if (!allGray) return colors;
+  const pal = FANTASY_PALETTES[pick(seed + "nogray", FANTASY_PALETTES.length)];
+  return pal.slice(0, Math.max(3, colors.length));
+}
 
 export type GeneratedPalette = {
   colors: string[]; // 3–6 hex values
@@ -135,9 +153,10 @@ export function generatePaletteAndMotifs(input: PaletteLLMInput): GeneratedPalet
     return { colors, primaryMotif, secondaryMotifs, contrastLevel };
   }
 
-  // Use aesthetic palette when present and sufficient
+  // Use aesthetic palette when present and sufficient (never grayscale-only)
   if (aesthetic.colorPalette?.length >= 3) {
     colors = aesthetic.colorPalette.slice(0, 6);
+    colors = ensureNotGrayscaleOnly(colors, seed);
     primaryMotif = MOTIFS.default[pick(seed, MOTIFS.default.length)];
     secondaryMotifs = ["natural noise", "subtle detail"];
     return { colors, primaryMotif, secondaryMotifs, contrastLevel };

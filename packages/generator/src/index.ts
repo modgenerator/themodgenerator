@@ -88,11 +88,13 @@ export {
 } from "./texture/index.js";
 export type {
   FinalTexturePlan,
+  FinalTexturePlanMotifs,
   ProceduralTextureSpec,
   GeneratedPalette,
   StyledTextureSpec,
   PaletteLLMInput,
 } from "./texture/index.js";
+export { SEMANTIC_VISUAL_CONTRACT } from "./texture/index.js";
 export type { VisualSummaryForFrontend } from "./visual-summary.js";
 export { getVisualSummaryForFrontend } from "./visual-summary.js";
 export type {

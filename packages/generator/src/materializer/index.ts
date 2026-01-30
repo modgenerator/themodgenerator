@@ -15,9 +15,10 @@
  * If something is outside item/block scope: log it, scaffold it, do not block generation.
  *
  * TEXTURE INTELLIGENCE
- * FinalTexturePlan (from texture/synthesize) is authoritative for item/block visuals.
- * Never fall back to gray/default textures. If rendering is not implemented: log the plan,
- * scaffold the asset, continue generation.
+ * FinalTexturePlan (from texture/synthesize) is AUTHORITATIVE for item/block visuals.
+ * Never fall back to gray/default textures. If rasterization is not implemented:
+ * log the plan, scaffold the asset, continue generation.
+ * Generation must NEVER block due to rendering gaps.
  * This system generates texture intelligence even if rasterization is deferred.
  */
 

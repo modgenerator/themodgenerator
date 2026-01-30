@@ -89,6 +89,14 @@ describe("synthesizeTexture", () => {
     assert.strictEqual(plan1.styledSpec.style, plan2.styledSpec.style);
     assert.strictEqual(plan1.proceduralSpec.detailLayers.length, plan2.proceduralSpec.detailLayers.length);
   });
+
+  it("every plan has motifs (primaryMotif + secondaryMotifs)", () => {
+    const interpreted = interpretItemOrBlock("ice cream");
+    const plan = synthesizeTexture("ice cream", interpreted, "seed");
+    assert.ok(plan.motifs != null);
+    assert.ok(typeof plan.motifs.primaryMotif === "string" && plan.motifs.primaryMotif.length > 0);
+    assert.ok(Array.isArray(plan.motifs.secondaryMotifs) && plan.motifs.secondaryMotifs.length > 0);
+  });
 });
 
 describe("generateProceduralTexture", () => {
@@ -123,5 +131,24 @@ describe("generatePaletteAndMotifs", () => {
     assert.ok(result.colors.length >= 3 && result.colors.length <= 6);
     assert.ok(result.primaryMotif.length > 0);
     assert.ok(Array.isArray(result.secondaryMotifs));
+  });
+
+  it("never returns grayscale-only palette", () => {
+    const result = generatePaletteAndMotifs({
+      prompt: "thing",
+      semanticTags: [],
+      aesthetic: { materialHint: "stone", colorPalette: ["#808080", "#707070", "#606060"] },
+      seed: "s2",
+    });
+    assert.ok(result.colors.length >= 3);
+    const hasColor = result.colors.some((hex) => {
+      const m = hex.replace(/^#/, "").match(/^([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/);
+      if (!m) return true;
+      const r = parseInt(m[1], 16);
+      const g = parseInt(m[2], 16);
+      const b = parseInt(m[3], 16);
+      return Math.max(r, g, b) - Math.min(r, g, b) > 25;
+    });
+    assert.ok(hasColor, "palette must have at least one non-gray color");
   });
 });

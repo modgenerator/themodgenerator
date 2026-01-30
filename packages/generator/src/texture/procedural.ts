@@ -20,7 +20,10 @@ export type DetailLayerType =
   | "veins"
   | "sparkles"
   | "corrosion"
-  | "frost";
+  | "frost"
+  | "swirl"
+  | "runes"
+  | "fractures";
 
 export type ProceduralTextureSpec = {
   baseNoise: BaseNoiseType;
@@ -37,11 +40,12 @@ export type ProceduralTextureSpec = {
   };
 };
 
-/** Deterministic numeric hash from seed string. */
-function seedHash(seed: string): number {
+/** Deterministic numeric hash from string (seed + prompt for determinism). */
+function seedHash(seed: string, prompt?: string): number {
+  const combined = (prompt != null ? seed + "\0" + prompt : seed);
   let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < combined.length; i++) {
+    h = (h * 31 + combined.charCodeAt(i)) >>> 0;
   }
   return h;
 }
@@ -58,15 +62,17 @@ function baseNoiseFromMaterial(materialKey: string): BaseNoiseType {
 }
 
 /**
- * Generate procedural texture spec from aesthetic recipe. Deterministic for same recipe + seed.
- * detailLayers never empty; glow in recipe → postProcess.glowMask = true.
+ * Generate procedural texture spec from aesthetic recipe.
+ * Determinism: hash(seed + prompt). detailLayers never empty; glow → postProcess.glowMask = true.
+ * baseNoise inferred from material semantics (ice/crystal/gem → crystal, organic → organic, etc.).
  */
 export function generateProceduralTexture(
   recipe: AestheticTextureRecipe,
-  seed: string
+  seed: string,
+  prompt?: string
 ): ProceduralTextureSpec {
   const baseNoise = baseNoiseFromMaterial(recipe.base.key);
-  const h = seedHash(seed);
+  const h = seedHash(seed, prompt);
   const scale = 0.3 + ((h % 100) / 100) * 0.4;
   const contrast = 0.5 + ((h % 73) / 73) * 0.5;
 
@@ -79,8 +85,11 @@ export function generateProceduralTexture(
   if (recipe.animation?.type === "sparkle") {
     detailLayers.push({ type: "sparkles", intensity: 0.5 });
   }
+  if (recipe.animation?.type === "wave") {
+    detailLayers.push({ type: "swirl", intensity: 0.4 });
+  }
   if (recipe.animation?.type === "pulse") {
-    // pulse → no extra layer; handled by glowMask
+    // pulse → handled by glowMask
   }
 
   // overlay keys from recipe
@@ -92,6 +101,9 @@ export function generateProceduralTexture(
     else if (key.includes("frost") || key.includes("ice")) detailLayers.push({ type: "frost", intensity: 0.5 });
     else if (key.includes("corrosion")) detailLayers.push({ type: "corrosion", intensity: 0.4 });
     else if (key.includes("sparkle")) detailLayers.push({ type: "sparkles", intensity: 0.4 });
+    else if (key.includes("swirl") || key.includes("cream")) detailLayers.push({ type: "swirl", intensity: 0.35 });
+    else if (key.includes("rune") || key.includes("arcane")) detailLayers.push({ type: "runes", intensity: 0.3 });
+    else if (key.includes("fracture") || key.includes("crack")) detailLayers.push({ type: "fractures", intensity: 0.35 });
   }
 
   // glow in recipe (from aesthetic.glow) → glowMask

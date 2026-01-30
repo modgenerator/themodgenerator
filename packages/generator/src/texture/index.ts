@@ -1,8 +1,12 @@
 /**
  * Generative texture intelligence. Procedural generation, style transfer, palette/motif.
- * Pure data plans; no rasterization. Deterministic via seed.
+ * Pure data plans; no rasterization. Deterministic via hash(seed + prompt).
+ *
+ * Contract: every item/block resolves to palette (3–6), procedural structure,
+ * style, motifs, optional animation. No prompt rejection. No grayscale-only.
  */
 
+export { SEMANTIC_VISUAL_CONTRACT, type SemanticVisualGuarantee } from "./semantic-visual-contract.js";
 export {
   generateProceduralTexture,
   type ProceduralTextureSpec,
@@ -22,4 +26,5 @@ export {
 export {
   synthesizeTexture,
   type FinalTexturePlan,
+  type FinalTexturePlanMotifs,
 } from "./synthesize.js";

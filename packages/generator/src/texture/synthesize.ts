@@ -1,6 +1,9 @@
 /**
- * Unified texture synthesis pipeline. Fixed order: palette & motif → procedural → style → final plan.
- * FinalTexturePlan is the single authoritative texture description.
+ * Unified texture synthesis pipeline. STRICT ORDER: palette & motif → procedural → style → final plan.
+ * FinalTexturePlan is the SINGLE SOURCE OF TRUTH for visuals.
+ *
+ * Contract: every item/block resolves to palette (3–6 colors), procedural structure,
+ * stylistic transformation, motifs, optional animation. No exceptions.
  */
 
 import type { InterpretedResult } from "../interpretation.js";
@@ -14,8 +17,15 @@ import type { StyledTextureSpec } from "./style-transfer.js";
 import { generatePaletteAndMotifs } from "./palette-llm.js";
 import type { GeneratedPalette } from "./palette-llm.js";
 
+export type FinalTexturePlanMotifs = {
+  primaryMotif: string;
+  secondaryMotifs: string[];
+};
+
 export type FinalTexturePlan = {
   palette: GeneratedPalette;
+  /** Explicit motifs (visual intent: "swirled cream", "radioactive veins", "arcane fractures"). */
+  motifs: FinalTexturePlanMotifs;
   proceduralSpec: ProceduralTextureSpec;
   styledSpec: StyledTextureSpec;
   animationSpec?: AnimationSpec;
@@ -65,9 +75,13 @@ export function synthesizeTexture(
   // 5. Style transfer
   const styledSpec = applyStyleTransfer(proceduralSpec, style);
 
-  // 6. Final plan
+  // 6. Final plan (single source of truth)
   return {
     palette,
+    motifs: {
+      primaryMotif: palette.primaryMotif,
+      secondaryMotifs: palette.secondaryMotifs,
+    },
     proceduralSpec,
     styledSpec,
     animationSpec: recipe.animation,

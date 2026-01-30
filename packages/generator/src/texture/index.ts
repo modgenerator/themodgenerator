@@ -28,3 +28,5 @@ export {
   type FinalTexturePlan,
   type FinalTexturePlanMotifs,
 } from "./synthesize.js";
+export { rasterizeTexture, type RasterizedTexture } from "./rasterize.js";
+export { generatePreviewTextures, type PreviewTextures } from "./preview.js";

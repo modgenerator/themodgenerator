@@ -20,6 +20,8 @@ import type { Primitive } from "./primitives.js";
 import { PRIMITIVE_REGISTRY } from "./primitives.js";
 import type { SystemUnit } from "./system-units.js";
 import { primitivesFromSystems } from "./system-units.js";
+import type { BehaviorPlan } from "./behavior/behavior-intelligence.js";
+import type { WorldIntegrationPlan } from "./world/world-integration.js";
 
 export interface UserIntent {
   name: string;
@@ -28,6 +30,13 @@ export interface UserIntent {
   material?: string;
 }
 
+/** Texture data (rasterized). Optional; if present, embed. If rasterization fails → scaffold, DO NOT BLOCK. */
+export type ExecutionPlanTextureData = {
+  inventoryIcon?: { size: number; pixels: Uint8ClampedArray; hash: string };
+  blockFace?: { size: number; pixels: Uint8ClampedArray; hash: string };
+  emissiveMask?: Uint8ClampedArray;
+};
+
 export interface ExecutionPlan {
   primitives: Primitive[];
   explanation: string;
@@ -35,6 +44,12 @@ export interface ExecutionPlan {
   systems: SystemUnit[];
   upgradePath?: string[];
   futureExpansion?: string[];
+  /** Rasterized texture data. Completeness required when generation proceeds. */
+  textureData?: ExecutionPlanTextureData;
+  /** Behavior plan. Every item/block has behavior. */
+  behaviorPlan?: BehaviorPlan;
+  /** World integration: recipes, loot, placement. Every item/block has acquisition path. */
+  worldIntegration?: WorldIntegrationPlan;
 }
 
 /**

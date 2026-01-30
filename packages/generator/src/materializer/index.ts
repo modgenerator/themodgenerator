@@ -20,6 +20,10 @@
  * log the plan, scaffold the asset, continue generation.
  * Generation must NEVER block due to rendering gaps.
  * This system generates texture intelligence even if rasterization is deferred.
+ *
+ * RASTERIZATION
+ * Rasterization is deterministic, semantic-free, and never blocks generation.
+ * If rasterization succeeds → embed textures. If rasterization fails → log + scaffold assets → DO NOT BLOCK.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";

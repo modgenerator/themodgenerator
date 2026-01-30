@@ -50,7 +50,7 @@ export type {
   PromptIssue,
   ClarificationResponse,
 } from "./interpretation/index.js";
-export type { UserIntent, ExecutionPlan } from "./execution-plan.js";
+export type { UserIntent, ExecutionPlan, ExecutionPlanTextureData } from "./execution-plan.js";
 export { planFromIntent, calculateCredits, intentToSystems } from "./execution-plan.js";
 export type { SystemUnit, SystemDefinition, PrimitiveId } from "./system-units.js";
 export { SYSTEM_REGISTRY, primitivesFromSystems } from "./system-units.js";
@@ -95,6 +95,8 @@ export {
   generatePaletteAndMotifs,
   applyStyleTransfer,
   TextureStyle,
+  rasterizeTexture,
+  generatePreviewTextures,
 } from "./texture/index.js";
 export type {
   FinalTexturePlan,
@@ -103,8 +105,28 @@ export type {
   GeneratedPalette,
   StyledTextureSpec,
   PaletteLLMInput,
+  RasterizedTexture,
+  PreviewTextures,
 } from "./texture/index.js";
 export { SEMANTIC_VISUAL_CONTRACT } from "./texture/index.js";
+export { synthesizeBehavior } from "./behavior/behavior-intelligence.js";
+export type {
+  BehaviorPlan,
+  TickBehavior,
+  InteractionBehavior,
+  AreaEffect,
+  StateMachine,
+  AIHook,
+} from "./behavior/behavior-intelligence.js";
+export { synthesizeWorldIntegration } from "./world/world-integration.js";
+export type {
+  WorldIntegrationPlan,
+  RecipeSpec,
+  LootTableSpec,
+  PlacementRule,
+  AdvancementSpec,
+  InterItemInteraction,
+} from "./world/world-integration.js";
 export type { VisualSummaryForFrontend } from "./visual-summary.js";
 export { getVisualSummaryForFrontend } from "./visual-summary.js";
 export type {

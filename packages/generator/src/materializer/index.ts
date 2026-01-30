@@ -13,6 +13,12 @@
  * If behavior is undefined → safe default, never failure.
  * No "preview-only"; no fake logic.
  * If something is outside item/block scope: log it, scaffold it, do not block generation.
+ *
+ * TEXTURE INTELLIGENCE
+ * FinalTexturePlan (from texture/synthesize) is authoritative for item/block visuals.
+ * Never fall back to gray/default textures. If rendering is not implemented: log the plan,
+ * scaffold the asset, continue generation.
+ * This system generates texture intelligence even if rasterization is deferred.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";

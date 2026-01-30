@@ -79,6 +79,20 @@ export type { TextureRecipe, TextureRecipeLayer, LayerType } from "./texture-rec
 export { recipeFromBlueprint } from "./texture-recipe.js";
 export type { TextureSourceKind, TextureSourceResult } from "./texture-sources.js";
 export { selectTextureSource } from "./texture-sources.js";
+export {
+  synthesizeTexture,
+  generateProceduralTexture,
+  generatePaletteAndMotifs,
+  applyStyleTransfer,
+  TextureStyle,
+} from "./texture/index.js";
+export type {
+  FinalTexturePlan,
+  ProceduralTextureSpec,
+  GeneratedPalette,
+  StyledTextureSpec,
+  PaletteLLMInput,
+} from "./texture/index.js";
 export type { VisualSummaryForFrontend } from "./visual-summary.js";
 export { getVisualSummaryForFrontend } from "./visual-summary.js";
 export type {

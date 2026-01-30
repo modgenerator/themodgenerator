@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import { healthRoutes } from "./routes/health.js";
 import { jobRoutes } from "./routes/jobs.js";
 import { generateRoutes } from "./routes/generate.js";
+import { interpretRoutes } from "./routes/interpret.js";
 
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] Uncaught exception:", err);
@@ -38,6 +39,7 @@ async function start() {
   });
 
   await app.register(healthRoutes, { prefix: "/" });
+  await app.register(interpretRoutes, { prefix: "/" });
   await app.register(jobRoutes, { prefix: "/jobs" });
   await app.register(generateRoutes, { prefix: "/generate" });
 

@@ -40,6 +40,16 @@ export {
 } from "./item-block-primitives.js";
 export type { InterpretedKind, InterpretedResult } from "./interpretation.js";
 export { interpretItemOrBlock } from "./interpretation.js";
+export {
+  analyzePromptIntent,
+  clarificationGate,
+  interpretWithClarification,
+} from "./interpretation/index.js";
+export type {
+  PromptAnalysis,
+  PromptIssue,
+  ClarificationResponse,
+} from "./interpretation/index.js";
 export type { UserIntent, ExecutionPlan } from "./execution-plan.js";
 export { planFromIntent, calculateCredits, intentToSystems } from "./execution-plan.js";
 export type { SystemUnit, SystemDefinition, PrimitiveId } from "./system-units.js";

@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# DEPRECATED: Canonical deploy is Cloud Build (repo root cloudbuild.yaml).
+# Cloud Run must be updated ONLY via: cloudbuild.yaml → docker build → gcloud run deploy.
+# This script deploys an EXISTING image only; it does not build. Use only for
+# one-off rollbacks or when you have already built/pushed an image elsewhere.
+#
 # Deploy API Cloud Run service. Image must already be built and pushed.
 # Usage: GCP_PROJECT_ID=myproject GCS_BUCKET=myproject-modgen-artifacts ./deploy-api.sh
 set -e

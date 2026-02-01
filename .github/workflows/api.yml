@@ -1,3 +1,8 @@
+# DEPRECATED: API deploy is canonical via Cloud Build (repo root cloudbuild.yaml).
+# Do NOT use this workflow for production deploys. Cloud Run must be updated ONLY via:
+#   Cloud Build trigger → cloudbuild.yaml → docker build → gcloud run deploy
+# This file is kept for reference / manual override only. Prefer Cloud Build.
+#
 # On push to main: build API image, push to Artifact Registry, deploy Cloud Run Service.
 # Uses Workload Identity Federation (OIDC) — no JSON keys in GitHub.
 

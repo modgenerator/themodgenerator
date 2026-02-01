@@ -7,6 +7,9 @@ substitutions:
   _REGION: europe-west2
   _GCS_BUCKET: ""  # Set in Cloud Build trigger (e.g. ${PROJECT_ID}-modgen-artifacts)
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: gcr.io/cloud-builders/docker
     args:

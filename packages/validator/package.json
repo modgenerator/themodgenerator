@@ -8,13 +8,12 @@
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
-    "test": "npm run build && node --test dist/validate-tier1.test.js dist/tier1-contract.test.js"
+    "test": "npm run build && node --test dist/validate-tier1.test.js"
   },
   "dependencies": {
     "@themodgenerator/spec": "*"
   },
   "devDependencies": {
-    "@themodgenerator/generator": "*",
     "typescript": "~5.3.3"
   }
 }

@@ -2,15 +2,15 @@
  * Tier 1 contract test — golden reference for Tier 1 end-to-end.
  * Pipeline: minimal Tier 1 spec → validateTier1 → expandSpecTier1 → composeTier1Stub.
  * Asserts: no errors, non-empty descriptors, non-empty AssetKeys, no Tier 2 symbols in output.
- * Future tiers would add separate contract tests (e.g. tier2-contract.test.ts) and gates.
+ * Lives in generator so build order (validator before generator) does not require validator to depend on generator.
  */
 
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import type { ModSpecV1 } from "@themodgenerator/spec";
 import { expandSpecTier1, FEATURE_TIER, MAX_TIER_ALLOWED } from "@themodgenerator/spec";
-import { composeTier1Stub } from "@themodgenerator/generator";
-import { validateTier1 } from "./validate-tier1.js";
+import { validateTier1 } from "@themodgenerator/validator";
+import { composeTier1Stub } from "./composer-stub.js";
 
 const TIER_1_FEATURE_KEYS = new Set(
   Object.entries(FEATURE_TIER)

@@ -11,6 +11,7 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 steps:
+  # Step 1: Build the image
   - name: gcr.io/cloud-builders/docker
     args:
       - build
@@ -20,6 +21,13 @@ steps:
       - gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
       - .
 
+  # Step 2: Push the image (BEFORE deploy)
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
+
+  # Step 3: Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:

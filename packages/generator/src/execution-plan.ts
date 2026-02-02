@@ -63,7 +63,8 @@ export function intentToSystems(intent: UserIntent): SystemUnit[] {
   const category = intent.category;
   const systems: SystemUnit[] = [];
 
-  // Base: interaction for any use/click; cooldown when there is behavior
+  // Base: interaction for any use/click; cooldown when there is behavior.
+  // Semantic enrichment: interpret prompts so plans get appropriate systems (no enforcement).
   const hasUse =
     /\b(shoots?|shoot|casts?|cast)\s*lightning\b/.test(combined) ||
     /\blightning\s*(bolt|strike|attack)\b/.test(combined) ||
@@ -73,7 +74,13 @@ export function intentToSystems(intent: UserIntent): SystemUnit[] {
     /\b(fire|flame|burn|burning)\b/.test(combined) ||
     /\b(heal|healing|potion|restore)\b/.test(combined) ||
     /\bteleport\b/.test(combined) ||
-    /\b(use|right-?click|activates?)\b/.test(combined);
+    /\b(use|right-?click|activates?)\b/.test(combined) ||
+    /\bspell(s?)\b/.test(combined) ||
+    /\bcast(s?)\b/.test(combined) ||
+    (/\bmagic\b/.test(combined) && category === "item") ||
+    /\bchain(s?|ing)?\b/.test(combined) ||
+    /\bexplosion\b/.test(combined) ||
+    /\bexplode(s?)\b/.test(combined);
 
   if (hasUse || category === "item") {
     systems.push("interaction");
@@ -91,13 +98,28 @@ export function intentToSystems(intent: UserIntent): SystemUnit[] {
   else if (/\b(magic|magical)\s*wand\b/.test(combined) || (/\bwand\b/.test(combined) && (/\bshoot|cast|use\b/.test(combined) || desc.length > 0))) {
     systems.push("targeting", "projectile", "cooldown");
   }
-  // Fire / flame / burns
+  // Fire / flame / burns / explosion
   else if (/\b(fire|flame|burn|burning)\b/.test(combined) && category === "item") {
+    systems.push("targeting", "chaining", "cooldown");
+  }
+  else if (/\bexplosion\b/.test(combined) || /\bexplode(s?)\b/.test(combined)) {
+    systems.push("targeting", "area_effect", "cooldown");
+  }
+  // Spell / cast (generic) → status or projectile
+  else if (/\bspell(s?)\b/.test(combined) || (/\bcast(s?)\b/.test(combined) && !/\blightning\b/.test(combined))) {
+    systems.push("status_effect", "cooldown");
+  }
+  // Chain (e.g. chain lightning, chain effect) without lightning branch
+  else if (/\bchain(s?|ing)?\b/.test(combined) && category === "item") {
     systems.push("targeting", "chaining", "cooldown");
   }
   // Healing / potion
   else if (/\b(heal|healing|potion|restore)\b/.test(combined)) {
     systems.push("status_effect", "cooldown");
+  }
+  // Generic magic item (no wand)
+  else if (/\bmagic\b/.test(combined) && category === "item") {
+    systems.push("targeting", "projectile", "cooldown");
   }
   // Glowing block
   else if (/\b(glowing|glow|emissive)\s*block\b/.test(combined) || /\bblock\s*that\s*glows?\b/.test(combined)) {

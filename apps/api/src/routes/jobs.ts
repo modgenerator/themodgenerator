@@ -9,6 +9,7 @@ import {
   aggregateExecutionPlans,
   buildAggregatedExpectationContract,
   buildSafetyDisclosure,
+  deriveCapabilitiesFromPlan,
   type CreditBudget,
 } from "@themodgenerator/generator";
 import { expandSpecTier1 } from "@themodgenerator/spec";
@@ -78,22 +79,6 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     );
     const fullScope = [...scopeFromPrompt, ...scopeFromItems, ...scopeFromBlocks];
     const scopeResult = getScopeBudgetResult(fullScope, DEFAULT_BUDGET);
-    try {
-      console.log(`[JOBS] buildId=${buildId} triggering builder mode=${mode}`);
-      await triggerBuilderJob(job.id, mode);
-      await updateJob(pool, job.id, { status: "building" }); // Maps to "running" in API
-      console.log(`[JOBS] buildId=${buildId} builder triggered status=building`);
-    } catch (err) {
-      console.error(`[JOBS] buildId=${buildId} builder trigger failed:`, err);
-      await updateJob(pool, job.id, {
-        status: "failed",
-        rejection_reason: err instanceof Error ? err.message : "Failed to start builder",
-      });
-      return reply.status(502).send({
-        error: "Builder could not be started",
-        jobId: job.id,
-      });
-    }
     const itemPlans = expanded.items.map((item, i) =>
       planFromIntent({
         name: item.name,
@@ -112,6 +97,22 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     );
     const allPlans = [...itemPlans, ...blockPlans];
     const aggregatedPlan = aggregateExecutionPlans(allPlans);
+    try {
+      console.log(`[JOBS] buildId=${buildId} triggering builder mode=${mode}`);
+      await triggerBuilderJob(job.id, mode);
+      await updateJob(pool, job.id, { status: "building" }); // Maps to "running" in API
+      console.log(`[JOBS] buildId=${buildId} builder triggered status=building`);
+    } catch (err) {
+      console.error(`[JOBS] buildId=${buildId} builder trigger failed:`, err);
+      await updateJob(pool, job.id, {
+        status: "failed",
+        rejection_reason: err instanceof Error ? err.message : "Failed to start builder",
+      });
+      return reply.status(502).send({
+        error: "Builder could not be started",
+        jobId: job.id,
+      });
+    }
     const expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
     const safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
     return reply.status(200).send({
@@ -147,14 +148,14 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       created: "queued",
       planned: "queued",
     };
-    const apiStatus = statusMap[job.status] ?? "queued";
+    let apiStatus: "queued" | "running" | "completed" | "failed" = statusMap[job.status] ?? "queued";
     const out: {
       id: string;
       status: "queued" | "running" | "completed" | "failed";
       error?: string;
-      artifactPath?: string;
-      downloadUrl?: string | null;
+      artifactUrl?: string | null;
       executionPlan?: { systems: string[]; explanation: string[]; upgradePath?: string[]; futureExpansion?: string[] };
+      capabilitySummary?: { hasUseAction: boolean; dealsDamage: boolean; appliesEffects: boolean };
       expectationContract?: { whatItDoes: string[]; howYouUseIt: string[]; limits: string[]; scalesWithCredits: string[] };
       safetyDisclosure?: { statements: string[] };
       scopeSummary?: string[];
@@ -219,32 +220,53 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
         upgradePath: aggregatedPlan.upgradePath,
         futureExpansion: aggregatedPlan.futureExpansion,
       };
+      out.capabilitySummary = deriveCapabilitiesFromPlan(allPlans, aggregatedPlan);
       out.expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
       out.safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
     }
-    // Extract artifactPath from gs:// URL or use as-is
-    if (job.artifact_path) {
-      const parsed = parseGsUrl(job.artifact_path);
-      out.artifactPath = parsed?.path ?? job.artifact_path;
-    }
-    // Only generate downloadUrl if status is completed and artifact exists
-    if (apiStatus === "completed" && job.artifact_path) {
-      const parsed = parseGsUrl(job.artifact_path);
-      const bucket = parsed?.bucket ?? gcsBucket;
-      const path = parsed?.path ?? job.artifact_path;
-      if (bucket && path) {
-        try {
-          out.downloadUrl = await getArtifactDownloadUrl(bucket, path, 900); // 15 minutes
-        } catch (err) {
-          console.error("Failed to generate signed URL:", err);
-          out.downloadUrl = null;
-        }
+    // Artifact delivery: "completed" only when JAR exists and signed URL is generated. Never expose gs:// or bucket.
+    if (apiStatus === "completed") {
+      if (!job.artifact_path) {
+        console.error(`[JOBS] buildId=${job.id} status=succeeded but artifact_path missing; returning failed`);
+        apiStatus = "failed";
+        out.status = "failed";
+        out.error = "Artifact missing; build may have completed without uploading the JAR.";
+        out.artifactUrl = null;
       } else {
-        out.downloadUrl = null;
+        const parsed = parseGsUrl(job.artifact_path);
+        const bucket = parsed?.bucket ?? gcsBucket;
+        const path = parsed?.path ?? job.artifact_path;
+        if (!bucket || !path) {
+          console.error(`[JOBS] buildId=${job.id} invalid artifact_path (no bucket/path)`);
+          apiStatus = "failed";
+          out.status = "failed";
+          out.error = "Invalid artifact path; cannot generate download URL.";
+          out.artifactUrl = null;
+        } else {
+          try {
+            out.artifactUrl = await getArtifactDownloadUrl(bucket, path, 900); // 15 minutes
+            out.status = "completed";
+            console.log(`[JOBS] buildId=${job.id} artifact signed URL generated successfully`);
+          } catch (err) {
+            console.error(`[JOBS] buildId=${job.id} signed URL failed path=${path}`, err);
+            apiStatus = "failed";
+            out.status = "failed";
+            out.error = "Signed download URL could not be generated; try again later.";
+            out.artifactUrl = null;
+          }
+        }
       }
     } else {
-      out.downloadUrl = null;
+      out.artifactUrl = null;
     }
+    const payloadSummary = {
+      buildId: job.id,
+      status: out.status,
+      capabilities: out.capabilitySummary ?? null,
+      creditTier: out.totalCredits ?? null,
+      hasArtifactUrl: !!out.artifactUrl,
+    };
+    console.log(`[JOBS] buildId=${job.id} final payload to frontend:`, JSON.stringify(payloadSummary));
     return reply.status(200).send(out);
   });
 };

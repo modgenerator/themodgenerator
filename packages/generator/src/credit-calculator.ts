@@ -1,20 +1,33 @@
 /**
  * Scope-Based Credit Calculation.
- * Credits = sum of (scope unit cost × quantity). Deterministic; same scope → same credits.
- * Budget tiers: 30 | 60 | 120 | 300. No caps inside calculation; no blocking.
- *
- * HARD GUARANTEE:
- * - User intent is NEVER rejected.
- * - All requested functionality is planned and generated.
- * - Credits are economic only; they never disable features.
- * - If over budget, the mod is still fully generated.
- * - Budget only affects whether the user can download without upgrading.
+ * Credits = sum of (scope unit cost × quantity). Result snaps to nearest tier.
+ * Tiers: 5 (items only) | 30 (items + behaviors) | 60 (+ entities) | 120 (+ world) | 300 (full).
+ * No auto-escalate; credits snap to nearest tier only.
  */
 
 import type { ScopeUnit } from "./scope-metrics.js";
 import { SCOPE_COSTS, SCOPE_UNIT_LABELS } from "./scope-metrics.js";
 
-export type CreditBudget = 30 | 60 | 120 | 300;
+/** Strict tiers. Magic wand with right-click, damage, lightning = 30. */
+export const CREDIT_TIERS = [5, 30, 60, 120, 300] as const;
+export type CreditBudget = (typeof CREDIT_TIERS)[number];
+
+/**
+ * Snap raw credits to the nearest tier. Never return non-tier values (e.g. 35 → 30).
+ */
+export function snapToTier(rawCredits: number): CreditBudget {
+  if (rawCredits <= 0) return CREDIT_TIERS[0];
+  let nearest: CreditBudget = CREDIT_TIERS[0];
+  let best = Math.abs(rawCredits - nearest);
+  for (const tier of CREDIT_TIERS) {
+    const d = Math.abs(rawCredits - tier);
+    if (d < best) {
+      best = d;
+      nearest = tier;
+    }
+  }
+  return nearest;
+}
 
 /**
  * Calculate total credits for a list of scope units.
@@ -79,13 +92,14 @@ function buildExplanation(
 
 /**
  * Compute scope-based credit result for frontend.
- * Never rejects or removes features; only informs.
+ * totalCredits is always a tier value (5, 30, 60, 120, 300). No "estimated 35" style.
  */
 export function getScopeBudgetResult(
   scope: ScopeUnit[],
   budget: CreditBudget
 ): ScopeBudgetResult {
-  const totalCredits = calculateCreditsFromScope(scope);
+  const rawCredits = calculateCreditsFromScope(scope);
+  const totalCredits = snapToTier(rawCredits);
   const fitsBudget = fitsWithinBudget(totalCredits, budget);
   const overBy = fitsBudget ? 0 : totalCredits - budget;
   const scopeSummary = buildScopeSummary(scope);

@@ -35,7 +35,7 @@ export function expandIntentToScope(intent: UserIntent): ScopeUnit[] {
     units.push("item");
   }
 
-  // ---- Item/block behavior (use, shoot, cast, etc.) ----
+  // ---- Item/block behavior (use, shoot, cast, etc.) — aligned with planner semantics ----
   const hasBehavior =
     /\b(shoots?|shoot|casts?|cast)\s*lightning\b/.test(combined) ||
     /\blightning\s*(bolt|strike|attack)\b/.test(combined) ||
@@ -47,7 +47,13 @@ export function expandIntentToScope(intent: UserIntent): ScopeUnit[] {
     /\b(glowing|glow|emissive)\s*block\b/.test(combined) ||
     /\bblock\s*that\s*glows?\b/.test(combined) ||
     /\bteleport\b/.test(combined) ||
-    /\b(use|right-?click|activates?)\b/.test(combined);
+    /\b(use|right-?click|activates?)\b/.test(combined) ||
+    /\bspell(s?)\b/.test(combined) ||
+    /\bcast(s?)\b/.test(combined) ||
+    (/\bmagic\b/.test(combined) && category === "item") ||
+    /\bchain(s?|ing)?\b/.test(combined) ||
+    /\bexplosion\b/.test(combined) ||
+    /\bexplode(s?)\b/.test(combined);
 
   if (category === "item" && hasBehavior) {
     units.push("item_behavior");
@@ -56,12 +62,14 @@ export function expandIntentToScope(intent: UserIntent): ScopeUnit[] {
     units.push("block_behavior");
   }
 
-  // Lightning / spawn entity → entity scope
+  // Lightning / spell / projectile / spawn entity → entity scope
   if (
     /\b(shoots?|shoot|casts?|cast)\s*lightning\b/.test(combined) ||
     /\blightning\s*(bolt|strike|attack)\b/.test(combined) ||
     (/\blightning\b/.test(combined) && /\b(wand|staff|rod)\b/.test(combined)) ||
-    /\bspawn\s*entity\b/.test(combined)
+    /\bspawn\s*entity\b/.test(combined) ||
+    /\bspell(s?)\b/.test(combined) ||
+    (/\bcast(s?)\b/.test(combined) && category === "item")
   ) {
     units.push("entity");
   }

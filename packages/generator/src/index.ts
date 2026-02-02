@@ -66,6 +66,8 @@ export type { ExpectationContract } from "./expectation-contract.js";
 export { buildExpectationContract } from "./expectation-contract.js";
 export type { AggregatedExecutionPlan } from "./plan-aggregation.js";
 export { aggregateExecutionPlans } from "./plan-aggregation.js";
+export type { CapabilitySummary } from "./derive-capabilities.js";
+export { deriveCapabilitiesFromPlan } from "./derive-capabilities.js";
 export { buildAggregatedExpectationContract } from "./expectation-aggregation.js";
 export type { SafetyDisclosure } from "./safety-disclosure.js";
 export { buildSafetyDisclosure, NOTHING_IS_FAKE_DISCLOSURE } from "./safety-disclosure.js";

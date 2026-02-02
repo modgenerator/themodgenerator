@@ -18,14 +18,14 @@ steps:
       - -f
       - apps/api/Dockerfile
       - -t
-      - gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
+      - europe-west2-docker.pkg.dev/${PROJECT_ID}/themodgenerator/modgen-api:${COMMIT_SHA}
       - .
 
   # Step 2: Push the image (BEFORE deploy)
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
+      - europe-west2-docker.pkg.dev/${PROJECT_ID}/themodgenerator/modgen-api:${COMMIT_SHA}
 
   # Step 3: Deploy to Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -34,7 +34,7 @@ steps:
       - run
       - deploy
       - ${_SERVICE_NAME}
-      - --image=gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
+      - --image=europe-west2-docker.pkg.dev/${PROJECT_ID}/themodgenerator/modgen-api:${COMMIT_SHA}
       - --region=${_REGION}
       - --platform=managed
       - --set-env-vars=GCS_BUCKET=${_GCS_BUCKET},GCP_PROJECT=${PROJECT_ID},CLOUD_RUN_REGION=${_REGION},BUILDER_JOB_NAME=mod-builder
@@ -44,4 +44,4 @@ steps:
       - --project=${PROJECT_ID}
 
 images:
-  - gcr.io/${PROJECT_ID}/modgen-api:${COMMIT_SHA}
+  - europe-west2-docker.pkg.dev/${PROJECT_ID}/themodgenerator/modgen-api:${COMMIT_SHA}

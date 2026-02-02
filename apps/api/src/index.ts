@@ -23,29 +23,30 @@ process.on("unhandledRejection", (err) => {
 async function start() {
   const app = Fastify({ logger: true });
 
-  // Register CORS exactly once, before routes, so OPTIONS preflight gets CORS headers
+  // CORS first: no other plugins or routes before it. OPTIONS preflight must see CORS headers.
   await app.register(cors, {
     origin: true,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Build-Id"],
-    credentials: false,
     optionsSuccessStatus: 204,
     preflight: true,
+    strictPreflight: false,
   });
 
-  // Log environment check (without exposing secrets)
-  console.log("[API] Environment check:", {
-    hasDatabaseUrl: !!process.env.DATABASE_URL,
-    databaseUrlLength: process.env.DATABASE_URL?.length ?? 0,
-    gcsBucket: process.env.GCS_BUCKET ?? "not set",
-    projectId: process.env.GCP_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? "not set",
+  // All routes and logging after CORS so CORS hooks run first on every request
+  await app.register(async (instance) => {
+    console.log("[API] Environment check:", {
+      hasDatabaseUrl: !!process.env.DATABASE_URL,
+      databaseUrlLength: process.env.DATABASE_URL?.length ?? 0,
+      gcsBucket: process.env.GCS_BUCKET ?? "not set",
+      projectId: process.env.GCP_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? "not set",
+    });
+    await instance.register(healthRoutes, { prefix: "/" });
+    await instance.register(interpretRoutes, { prefix: "/" });
+    await instance.register(jobRoutes, { prefix: "/jobs" });
+    await instance.register(generateRoutes, { prefix: "/generate" });
+    await instance.register(debugRoutes, { prefix: "/debug" });
   });
-
-  await app.register(healthRoutes, { prefix: "/" });
-  await app.register(interpretRoutes, { prefix: "/" });
-  await app.register(jobRoutes, { prefix: "/jobs" });
-  await app.register(generateRoutes, { prefix: "/generate" });
-  await app.register(debugRoutes, { prefix: "/debug" });
 
   const port = Number(process.env.PORT ?? 8080);
   const host = process.env.HOST ?? "0.0.0.0";

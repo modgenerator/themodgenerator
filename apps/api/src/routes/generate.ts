@@ -16,10 +16,15 @@ function parseBuildIdHeader(header: string | undefined): string | undefined {
   return UUID_REGEX.test(s) ? s : undefined;
 }
 
+/** Execution mode: "build" unless FORCE_TEST_MODE is set (internal only, never from user input). */
+function getExecutionMode(): "build" | "test" {
+  const v = process.env.FORCE_TEST_MODE;
+  return v === "1" || v === "true" ? "test" : "build";
+}
+
 export const generateRoutes: FastifyPluginAsync = async (app) => {
-  app.post<{ Body: { prompt: string; mode?: "test" | "real" } }>("/", async (req, reply) => {
+  app.post<{ Body: { prompt: string } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
-    const mode = req.body?.mode ?? "test";
     const rawBuildId = req.headers["x-build-id"];
     const buildIdFromHeader = parseBuildIdHeader(Array.isArray(rawBuildId) ? rawBuildId[0] : rawBuildId);
     
@@ -27,10 +32,7 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
     }
     
-    if (mode !== "test" && mode !== "real") {
-      return reply.status(400).send({ error: "mode must be 'test' or 'real'" });
-    }
-    
+    const mode = getExecutionMode();
     const pool = getDbPool();
     
     const spec = planSpec(prompt);

@@ -20,6 +20,12 @@ const DEFAULT_BUDGET: CreditBudget = 30;
 
 const gcsBucket = process.env.GCS_BUCKET ?? "";
 
+/** Execution mode: "build" unless FORCE_TEST_MODE is set (internal only, never from user input). */
+function getExecutionMode(): "build" | "test" {
+  const v = process.env.FORCE_TEST_MODE;
+  return v === "1" || v === "true" ? "test" : "build";
+}
+
 function getDbPool() {
   return getPool();
 }
@@ -31,15 +37,12 @@ function parseGsUrl(gs: string): { bucket: string; path: string } | null {
 }
 
 export const jobRoutes: FastifyPluginAsync = async (app) => {
-  app.post<{ Body: { prompt: string; mode?: "test" | "real" } }>("/", async (req, reply) => {
+  app.post<{ Body: { prompt: string } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
-    const mode = req.body?.mode ?? "test";
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
     }
-    if (mode !== "test" && mode !== "real") {
-      return reply.status(400).send({ error: "mode must be 'test' or 'real'" });
-    }
+    const mode = getExecutionMode();
     const pool = getDbPool();
     const spec = planSpec(prompt);
     // Validation may annotate metadata but must not block job creation (no Tier 1 gating)

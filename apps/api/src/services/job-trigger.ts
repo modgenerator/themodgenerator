@@ -8,7 +8,7 @@ const builderJobName = process.env.BUILDER_JOB_NAME ?? "mod-builder";
  * Trigger the Cloud Run Builder Job for the given job ID via REST API.
  * The Builder container receives JOB_ID and MODE in its environment.
  */
-export async function triggerBuilderJob(jobId: string, mode: string = "test"): Promise<void> {
+export async function triggerBuilderJob(jobId: string, mode: string = "build"): Promise<void> {
   if (!projectId) {
     const error = new Error("GOOGLE_CLOUD_PROJECT or GCP_PROJECT must be set");
     console.error("[JOB-TRIGGER] Missing project ID:", error);

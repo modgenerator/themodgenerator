@@ -68,7 +68,12 @@ console.log("[BUILDER] Validating environment variables...");
 const JOB_ID: string = requireEnv("JOB_ID");
 const DATABASE_URL: string = requireEnv("DATABASE_URL");
 const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
-const MODE: string = process.env.MODE ?? "test";
+
+/** Execution mode: "build" unless FORCE_TEST_MODE is set. Ignore user/request mode. */
+function getExecutionMode(): "build" | "test" {
+  const v = process.env.FORCE_TEST_MODE;
+  return v === "1" || v === "true" ? "test" : "build";
+}
 
 console.log("[BUILDER] Environment check:", {
   hasJobId: true,
@@ -77,7 +82,7 @@ console.log("[BUILDER] Environment check:", {
   databaseUrlLength: DATABASE_URL.length,
   hasGcsBucket: true,
   gcsBucket: GCS_BUCKET,
-  mode: MODE,
+  mode: getExecutionMode(),
 });
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
@@ -165,7 +170,7 @@ async function runGradle(
   buildId?: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const bid = buildId ?? "unknown";
-  const currentMode = process.env.MODE ?? "test";
+  const currentMode = getExecutionMode();
   if (currentMode === "test") {
     throw new Error("FATAL: Gradle execution is forbidden in test mode. This is a programming error.");
   }
@@ -233,7 +238,8 @@ async function runGradle(
 
 async function main(): Promise<void> {
   const buildId = JOB_ID;
-  console.log(`[BUILDER] buildId=${buildId} main started MODE=${MODE}`);
+  const mode = getExecutionMode();
+  console.log(`[BUILDER] buildId=${buildId} main started mode=${mode}`);
   console.log(`[BUILDER] buildId=${buildId} connecting to database`);
   const pool = getPool(DATABASE_URL);
   console.log(`[BUILDER] buildId=${buildId} database pool created`);
@@ -246,8 +252,6 @@ async function main(): Promise<void> {
   }
   await logPhase(pool, buildId, "prompt_parsed");
   console.log(`[BUILDER] buildId=${buildId} job found status=${job.status}`);
-  const mode = MODE || job.mode || "test";
-  console.log(`[BUILDER] buildId=${buildId} mode=${mode}`);
   
   await updateJob(pool, JOB_ID, { status: "building", started_at: new Date() });
   console.log(`[BUILDER] buildId=${buildId} status=building`);
@@ -402,10 +406,6 @@ async function main(): Promise<void> {
       });
       console.log("[BUILDER] Test mode complete — exiting successfully");
       return;
-    }
-    
-    if (mode !== "build") {
-      throw new Error(`FATAL: Invalid mode '${mode}'. Only 'test' and 'build' modes are supported.`);
     }
     
     const gradlewPath = join(workDir, "gradlew");

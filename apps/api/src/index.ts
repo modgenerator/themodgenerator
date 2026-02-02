@@ -23,12 +23,14 @@ process.on("unhandledRejection", (err) => {
 async function start() {
   const app = Fastify({ logger: true });
 
-  // Register CORS BEFORE routes to ensure preflight requests are handled
+  // Register CORS exactly once, before routes, so OPTIONS preflight gets CORS headers
   await app.register(cors, {
     origin: true,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Build-Id"],
+    credentials: false,
     optionsSuccessStatus: 204,
+    preflight: true,
   });
 
   // Log environment check (without exposing secrets)

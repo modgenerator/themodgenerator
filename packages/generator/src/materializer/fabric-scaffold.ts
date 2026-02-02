@@ -88,10 +88,11 @@ mod_version=1.0.0
 maven_group=net.themodgenerator
 archives_base_name=generated
 
+# Cloud Run jobs: no daemon, foreground-only, constrained JVM
 org.gradle.daemon=false
+org.gradle.jvmargs=-Xms256m -Xmx1g -XX:MaxMetaspaceSize=512m
 org.gradle.parallel=false
-org.gradle.configureondemand=false
-org.gradle.jvmargs=-Xms64m -Xmx256m
+org.gradle.workers.max=1
 `;
 }
 

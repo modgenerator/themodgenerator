@@ -28,7 +28,7 @@ RUN npm install && \
 FROM deps
 WORKDIR /app
 ENV NODE_ENV=production
-ENV GRADLE_OPTS=-Dorg.gradle.daemon=false
+ENV GRADLE_OPTS=-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=1
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages

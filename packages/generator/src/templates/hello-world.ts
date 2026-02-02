@@ -141,16 +141,11 @@ mod_version=1.0.0
 maven_group=net.themodgenerator
 archives_base_name=generated
 
-# Disable daemon for Cloud Run / CI stability
-# Gradle daemons are incompatible with ephemeral containers:
-# - Daemons expect persistent JVM processes across builds
-# - Containers are memory-constrained and may kill long-running processes
-# - Ephemeral filesystems don't preserve daemon state
-# Solution: run single foreground Gradle invocation with --no-daemon
+# Cloud Run jobs: no daemon, foreground-only, constrained JVM
 org.gradle.daemon=false
+org.gradle.jvmargs=-Xms256m -Xmx1g -XX:MaxMetaspaceSize=512m
 org.gradle.parallel=false
-org.gradle.configureondemand=false
-org.gradle.jvmargs=-Xms64m -Xmx256m
+org.gradle.workers.max=1
 `;
 }
 

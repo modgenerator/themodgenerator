@@ -177,7 +177,7 @@ async function runGradle(
   return new Promise((resolve, reject) => {
     const gradleEnv = {
       ...process.env,
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false",
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=1",
     };
     
     console.log(`[BUILDER] buildId=${bid} executing: ${command.join(" ")}`);

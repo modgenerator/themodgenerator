@@ -20,7 +20,8 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { prompt: string; mode?: "test" | "real" } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
     const mode = req.body?.mode ?? "test";
-    const buildIdFromHeader = parseBuildIdHeader(req.headers["x-build-id"]);
+    const rawBuildId = req.headers["x-build-id"];
+    const buildIdFromHeader = parseBuildIdHeader(Array.isArray(rawBuildId) ? rawBuildId[0] : rawBuildId);
     
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });

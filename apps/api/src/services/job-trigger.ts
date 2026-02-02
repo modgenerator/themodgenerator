@@ -65,7 +65,7 @@ export async function triggerBuilderJob(jobId: string, mode: string = "test"): P
       throw error;
     }
     
-    const responseText = await res.text();
+    await res.text();
     console.log(`[JOB-TRIGGER] buildId=${jobId} job triggered successfully`);
   } catch (err) {
     console.error(`[JOB-TRIGGER] buildId=${jobId} exception:`, err);

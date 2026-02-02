@@ -50,6 +50,8 @@ export interface UpdateJobInput {
   log_path?: string | null;
   started_at?: Date | null;
   finished_at?: Date | null;
+  current_phase?: string | null;
+  phase_updated_at?: Date | null;
 }
 
 export async function insertJob(

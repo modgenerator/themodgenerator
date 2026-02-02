@@ -34,17 +34,11 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     const pool = getDbPool();
     
     const spec = planSpec(prompt);
-    const validation = validateSpec(spec, { prompt });
-    if (!validation.valid) {
-      const job = await insertJob(pool, {
-        id: buildIdFromHeader,
-        prompt,
-        mode,
-        status: "rejected",
-        rejection_reason: validation.reason ?? "Validation failed",
-      });
-      console.log(`[GENERATE] buildId=${job.id} status=rejected reason=${validation.reason}`);
-      return reply.status(200).send({ jobId: job.id, status: "rejected", error: validation.reason });
+    // Validation may annotate metadata but must not block job creation (no Tier 1 gating)
+    try {
+      validateSpec(spec, { prompt });
+    } catch {
+      // If Tier 1 or any gate fails/throws, proceed with spec; do not reject
     }
     
     const job = await insertJob(pool, {

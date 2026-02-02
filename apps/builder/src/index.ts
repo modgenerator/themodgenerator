@@ -273,17 +273,15 @@ async function main(): Promise<void> {
       await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
       process.exit(1);
     }
-    console.log("[BUILDER] Spec obtained, validating...");
-    const validation = validateSpec(specToUse, { prompt: job.prompt });
-    if (!validation.valid) {
-      console.error(`[BUILDER] FATAL: Spec validation failed: ${validation.reason}`);
-      await updateJob(pool, JOB_ID, {
-        status: "rejected",
-        rejection_reason: validation.reason ?? "Validation failed",
-      });
-      process.exit(1);
+    // Validation may annotate metadata but must not block (no Tier 1 gating)
+    try {
+      const validation = validateSpec(specToUse, { prompt: job.prompt });
+      if (!validation.valid) {
+        console.log(`[BUILDER] buildId=${buildId} validation note (non-blocking): ${validation.reason ?? validation.gate}`);
+      }
+    } catch {
+      // If Tier 1 or any gate throws, proceed with spec; do not reject
     }
-    console.log("[BUILDER] Spec validation passed");
 
     if (mode === "test") {
       console.log(`[BUILDER] buildId=${buildId} generating hello-world from spec`);

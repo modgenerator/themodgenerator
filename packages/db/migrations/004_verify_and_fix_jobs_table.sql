@@ -10,13 +10,7 @@ BEGIN
 END $$;
 
 -- 2. Verify all required columns exist
-DO $$
-BEGIN
-  -- Check for missing columns and add them if needed
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'mode') THEN
-    ALTER TABLE jobs ADD COLUMN mode TEXT DEFAULT 'test';
-  END IF;
-END $$;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'test';
 
 -- 3. Verify column types are correct
 DO $$
@@ -84,11 +78,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS jobs_updated_at ON jobs;
-CREATE TRIGGER jobs_updated_at
-  BEFORE UPDATE ON jobs
-  FOR EACH ROW
-  EXECUTE FUNCTION set_updated_at();
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'jobs_updated_at') THEN
+    CREATE TRIGGER jobs_updated_at
+      BEFORE UPDATE ON jobs
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+  END IF;
+END $$;
 
 -- 8. Test insert with enum casting (this will fail if there's still an issue)
 DO $$

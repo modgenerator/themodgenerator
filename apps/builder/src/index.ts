@@ -82,6 +82,17 @@ console.log("[BUILDER] Environment check:", {
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
 
+/** Log phase transition and persist to DB for observability (buildId = JOB_ID). */
+async function logPhase(
+  pool: Parameters<typeof updateJob>[0],
+  buildId: string,
+  phase: string
+): Promise<void> {
+  const now = new Date();
+  console.log(`[BUILDER] buildId=${buildId} phase=${phase} timestamp=${now.toISOString()}`);
+  await updateJob(pool, buildId, { current_phase: phase, phase_updated_at: now });
+}
+
 /** Minimal valid 1x1 transparent PNG — canonical placeholder when no user texture. */
 const PLACEHOLDER_PNG_TRANSPARENT_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
@@ -150,8 +161,10 @@ function copyFabricWrapperTo(outDir: string): void {
 async function runGradle(
   command: string[],
   cwd: string,
-  timeoutMs: number = 600000 // 10 minutes default
+  timeoutMs: number = 600000, // 10 minutes default
+  buildId?: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  const bid = buildId ?? "unknown";
   const currentMode = process.env.MODE ?? "test";
   if (currentMode === "test") {
     throw new Error("FATAL: Gradle execution is forbidden in test mode. This is a programming error.");
@@ -162,9 +175,8 @@ async function runGradle(
       GRADLE_OPTS: "-Dorg.gradle.daemon=false",
     };
     
-    console.log(`[BUILDER] Executing: ${command.join(" ")}`);
-    console.log(`[BUILDER] Working directory: ${cwd}`);
-    console.log(`[BUILDER] GRADLE_OPTS: ${gradleEnv.GRADLE_OPTS}`);
+    console.log(`[BUILDER] buildId=${bid} executing: ${command.join(" ")}`);
+    console.log(`[BUILDER] buildId=${bid} cwd=${cwd}`);
     
     const proc = spawn(command[0], command.slice(1), {
       cwd,
@@ -190,7 +202,7 @@ async function runGradle(
     });
     
     const timeout = setTimeout(() => {
-      console.error(`[BUILDER] Gradle command timed out after ${timeoutMs}ms, killing process...`);
+      console.error(`[BUILDER] buildId=${bid} Gradle timed out after ${timeoutMs}ms`);
       proc.kill("SIGKILL");
       reject(new Error(`Gradle command timed out after ${timeoutMs}ms`));
     }, timeoutMs);
@@ -220,24 +232,25 @@ async function runGradle(
 }
 
 async function main(): Promise<void> {
-  console.log(`[BUILDER] Main function started. JOB_ID=${JOB_ID}, MODE=${MODE}`);
-  console.log("[BUILDER] Connecting to database...");
+  const buildId = JOB_ID;
+  console.log(`[BUILDER] buildId=${buildId} main started MODE=${MODE}`);
+  console.log(`[BUILDER] buildId=${buildId} connecting to database`);
   const pool = getPool(DATABASE_URL);
-  console.log("[BUILDER] Database connection pool created");
+  console.log(`[BUILDER] buildId=${buildId} database pool created`);
   
-  console.log(`[BUILDER] Fetching job from database: ${JOB_ID}`);
+  console.log(`[BUILDER] buildId=${buildId} fetching job`);
   const job = await getJobById(pool, JOB_ID);
   if (!job) {
-    console.error(`[BUILDER] FATAL: Job not found in database: ${JOB_ID}`);
+    console.error(`[BUILDER] buildId=${buildId} FATAL: job not found`);
     process.exit(1);
   }
-  console.log(`[BUILDER] Job found: status=${job.status}, prompt=${job.prompt?.substring(0, 50)}...`);
+  await logPhase(pool, buildId, "prompt_parsed");
+  console.log(`[BUILDER] buildId=${buildId} job found status=${job.status}`);
   const mode = MODE || job.mode || "test";
-  console.log(`[BUILDER] Using mode: ${mode}`);
+  console.log(`[BUILDER] buildId=${buildId} mode=${mode}`);
   
-  console.log("[BUILDER] Updating job status to 'building'...");
   await updateJob(pool, JOB_ID, { status: "building", started_at: new Date() });
-  console.log("[BUILDER] Job status updated to 'building'");
+  console.log(`[BUILDER] buildId=${buildId} status=building`);
   
   const workDir = join(tmpdir(), `modbuild-${randomUUID()}`);
   const logPath = join(workDir, "build.log");
@@ -273,12 +286,13 @@ async function main(): Promise<void> {
     console.log("[BUILDER] Spec validation passed");
 
     if (mode === "test") {
-      console.log("[BUILDER] Generating Fabric project (hello-world) from spec...");
+      console.log(`[BUILDER] buildId=${buildId} generating hello-world from spec`);
       fromSpec(specToUse, workDir);
-      console.log("[BUILDER] Fabric project generated");
+      console.log(`[BUILDER] buildId=${buildId} Fabric project generated`);
     } else {
-      console.log("[BUILDER] Build mode: generating Tier 1 materialized project...");
+      console.log(`[BUILDER] buildId=${buildId} build mode: Tier 1 materialized project`);
       const expanded = expandSpecTier1(specToUse);
+      await logPhase(pool, buildId, "world_interactions");
       const assets = composeTier1Stub(expanded.descriptors);
       const prompt = job.prompt ?? "";
       // Scope-based credits (before build). Never block or reduce scope.
@@ -320,6 +334,7 @@ async function main(): Promise<void> {
       );
       const allPlans = [...itemPlans, ...blockPlans];
       const aggregatedPlan = aggregateExecutionPlans(allPlans);
+      await logPhase(pool, buildId, "behaviors");
       const expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
       const safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
       if (process.env.NODE_ENV !== "production") {
@@ -360,7 +375,7 @@ async function main(): Promise<void> {
     }
 
     if (mode === "test") {
-      console.log("[BUILDER] Test mode: skipping Gradle execution");
+      console.log(`[BUILDER] buildId=${buildId} test mode: skipping Gradle`);
       const requiredFiles = [
         "build.gradle",
         "settings.gradle",
@@ -401,11 +416,13 @@ async function main(): Promise<void> {
     }
     
     try {
-      console.log("[BUILDER] Running './gradlew build --no-daemon --no-build-cache'...");
+      await logPhase(pool, buildId, "building_mod");
+      console.log(`[BUILDER] buildId=${buildId} running gradlew build`);
       const buildResult = await runGradle(
         ["./gradlew", "build", "--no-daemon", "--no-build-cache"],
         workDir,
-        600000
+        600000,
+        buildId
       );
       console.log(`[BUILDER] Gradle build completed successfully (exit code: ${buildResult.exitCode})`);
       logContent = `Build succeeded.\n\nSTDOUT:\n${buildResult.stdout}\n\nSTDERR:\n${buildResult.stderr}`;
@@ -420,18 +437,20 @@ async function main(): Promise<void> {
       await updateJob(pool, JOB_ID, {
         status: "failed",
         finished_at: new Date(),
+        current_phase: "failed",
+        phase_updated_at: new Date(),
         rejection_reason: `Gradle build failed: ${errorMsg}`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      console.error("[BUILDER] Exiting with code 1: Gradle build failed");
+      console.error(`[BUILDER] buildId=${buildId} phase=failed exiting`);
       process.exit(1);
     }
-    console.log("[BUILDER] Looking for built JAR file...");
+    console.log(`[BUILDER] buildId=${buildId} looking for JAR`);
     const jarDir = join(workDir, "build", "libs");
     const jars = readdirSync(jarDir).filter((f) => f.endsWith(".jar") && !f.includes("-sources"));
     const jarFile = jars[0];
     if (!jarFile) {
-      console.error("[BUILDER] FATAL: No jar file produced in build/libs");
+      console.error(`[BUILDER] buildId=${buildId} FATAL: no jar in build/libs`);
       logContent = "No jar produced";
       writeFileSync(logPath, logContent, "utf8");
       const logKey = `logs/${JOB_ID}/build.log`;
@@ -439,39 +458,35 @@ async function main(): Promise<void> {
       await updateJob(pool, JOB_ID, {
         status: "failed",
         finished_at: new Date(),
+        current_phase: "failed",
+        phase_updated_at: new Date(),
         rejection_reason: "No jar produced",
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      console.error("[BUILDER] Exiting with code 1: No jar produced");
       process.exit(1);
     }
-    console.log(`[BUILDER] Found JAR file: ${jarFile}`);
+    console.log(`[BUILDER] buildId=${buildId} jar=${jarFile}`);
     const jarPath = join(jarDir, jarFile);
     const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;
     
-    console.log(`[BUILDER] Uploading JAR to GCS: gs://${GCS_BUCKET}/${artifactKey}`);
+    console.log(`[BUILDER] buildId=${buildId} uploading JAR gs://${GCS_BUCKET}/${artifactKey}`);
     await uploadFile(jarPath, { bucket: GCS_BUCKET, destination: artifactKey, contentType: "application/java-archive" });
-    console.log("[BUILDER] JAR uploaded successfully");
-    
     writeFileSync(logPath, "Build succeeded.\n", "utf8");
-    console.log(`[BUILDER] Uploading build log to GCS: gs://${GCS_BUCKET}/${logKey}`);
     await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
-    console.log("[BUILDER] Build log uploaded successfully");
-    
-    console.log("[BUILDER] Updating job status to 'succeeded'...");
     await updateJob(pool, JOB_ID, {
       status: "succeeded",
       finished_at: new Date(),
+      current_phase: "completed",
+      phase_updated_at: new Date(),
       artifact_path: `gs://${GCS_BUCKET}/${artifactKey}`,
       log_path: `gs://${GCS_BUCKET}/${logKey}`,
     });
-    console.log("[BUILDER] Job status updated to 'succeeded'");
+    console.log(`[BUILDER] buildId=${buildId} phase=completed status=succeeded`);
   } catch (err) {
-    console.error("[BUILDER] FATAL: Unhandled exception in main()");
-    console.error("[BUILDER] Error:", err);
+    console.error(`[BUILDER] buildId=${buildId} FATAL: unhandled exception`, err);
     if (err instanceof Error) {
-      console.error("[BUILDER] Stack:", err.stack);
+      console.error(`[BUILDER] buildId=${buildId} stack:`, err.stack);
     }
     
     logContent += (err instanceof Error ? err.stack : String(err)) + "\n";
@@ -481,33 +496,33 @@ async function main(): Promise<void> {
       logKey = `logs/${JOB_ID}/build.log`;
       await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
     } catch (uploadErr) {
-      console.error("[BUILDER] Failed to upload error log:", uploadErr);
+      console.error(`[BUILDER] buildId=${buildId} failed to upload error log:`, uploadErr);
     }
     
     try {
       await updateJob(pool, JOB_ID, {
         status: "failed",
         finished_at: new Date(),
+        current_phase: "failed",
+        phase_updated_at: new Date(),
         rejection_reason: err instanceof Error ? err.message : "Build error",
         log_path: logKey ? `gs://${GCS_BUCKET}/${logKey}` : undefined,
       });
     } catch (updateErr) {
-      console.error("[BUILDER] Failed to update job status:", updateErr);
+      console.error(`[BUILDER] buildId=${buildId} failed to update job:`, updateErr);
     }
     
-    console.error("[BUILDER] Exiting with code 1: Unhandled exception");
     process.exit(1);
   } finally {
     try {
-      console.log("[BUILDER] Cleaning up work directory...");
+      console.log(`[BUILDER] buildId=${buildId} cleaning up workDir`);
       rmSync(workDir, { recursive: true, force: true });
-      console.log("[BUILDER] Work directory cleaned up");
     } catch (cleanupErr) {
-      console.error("[BUILDER] Failed to cleanup work directory:", cleanupErr);
+      console.error(`[BUILDER] buildId=${buildId} cleanup failed:`, cleanupErr);
     }
   }
   
-  console.log("[BUILDER] Main function completed successfully");
+  console.log(`[BUILDER] buildId=${buildId} main completed`);
 }
 
 console.log("[BUILDER] Starting main() function...");

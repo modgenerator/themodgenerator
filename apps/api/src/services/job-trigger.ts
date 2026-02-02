@@ -18,9 +18,8 @@ export async function triggerBuilderJob(jobId: string, mode: string = "test"): P
   const name = `projects/${projectId}/locations/${region}/jobs/${builderJobName}`;
   const url = `https://run.googleapis.com/v2/${name}:run`;
   
-  console.log(`[JOB-TRIGGER] Triggering job: ${name}`);
-  console.log(`[JOB-TRIGGER] URL: ${url}`);
-  console.log(`[JOB-TRIGGER] JobId: ${jobId}, Mode: ${mode}`);
+  console.log(`[JOB-TRIGGER] buildId=${jobId} triggering job: ${name}`);
+  console.log(`[JOB-TRIGGER] buildId=${jobId} URL: ${url} mode=${mode}`);
   
   try {
     const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
@@ -57,19 +56,19 @@ export async function triggerBuilderJob(jobId: string, mode: string = "test"): P
       body: JSON.stringify(requestBody),
     });
     
-    console.log(`[JOB-TRIGGER] Response status: ${res.status} ${res.statusText}`);
+    console.log(`[JOB-TRIGGER] buildId=${jobId} response status: ${res.status} ${res.statusText}`);
     
     if (!res.ok) {
       const text = await res.text();
       const error = new Error(`Cloud Run job trigger failed: ${res.status} ${text}`);
-      console.error(`[JOB-TRIGGER] API error response:`, text);
+      console.error(`[JOB-TRIGGER] buildId=${jobId} API error:`, text);
       throw error;
     }
     
     const responseText = await res.text();
-    console.log(`[JOB-TRIGGER] Job triggered successfully. Response:`, responseText);
+    console.log(`[JOB-TRIGGER] buildId=${jobId} job triggered successfully`);
   } catch (err) {
-    console.error(`[JOB-TRIGGER] Exception during job trigger:`, err);
+    console.error(`[JOB-TRIGGER] buildId=${jobId} exception:`, err);
     if (err instanceof Error) {
       console.error(`[JOB-TRIGGER] Exception stack:`, err.stack);
     }

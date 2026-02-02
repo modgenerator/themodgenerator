@@ -4,14 +4,23 @@ import { validateSpec } from "@themodgenerator/validator";
 import { planSpec } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function getDbPool() {
   return getPool();
+}
+
+function parseBuildIdHeader(header: string | undefined): string | undefined {
+  if (typeof header !== "string" || !header.trim()) return undefined;
+  const s = header.trim();
+  return UUID_REGEX.test(s) ? s : undefined;
 }
 
 export const generateRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { prompt: string; mode?: "test" | "real" } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
     const mode = req.body?.mode ?? "test";
+    const buildIdFromHeader = parseBuildIdHeader(req.headers["x-build-id"]);
     
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
@@ -23,39 +32,39 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     
     const pool = getDbPool();
     
-    // Plan the spec
     const spec = planSpec(prompt);
-    
-    // Validate the spec
     const validation = validateSpec(spec, { prompt });
     if (!validation.valid) {
       const job = await insertJob(pool, {
+        id: buildIdFromHeader,
         prompt,
         mode,
         status: "rejected",
         rejection_reason: validation.reason ?? "Validation failed",
       });
+      console.log(`[GENERATE] buildId=${job.id} status=rejected reason=${validation.reason}`);
       return reply.status(200).send({ jobId: job.id, status: "rejected", error: validation.reason });
     }
     
-    // Create job and trigger builder
     const job = await insertJob(pool, {
+      id: buildIdFromHeader,
       prompt,
       mode,
       status: "queued",
       spec_json: spec,
     });
+    const buildId = job.id;
     
     try {
-      console.log(`[GENERATE] Triggering builder job for jobId=${job.id}, mode=${mode}`);
+      console.log(`[GENERATE] buildId=${buildId} triggering builder mode=${mode}`);
       await triggerBuilderJob(job.id, mode);
-      console.log(`[GENERATE] Builder job triggered successfully for jobId=${job.id}`);
+      console.log(`[GENERATE] buildId=${buildId} builder triggered`);
       await updateJob(pool, job.id, { status: "building" });
       return reply.status(200).send({ jobId: job.id, status: "queued" });
     } catch (err) {
-      console.error(`[GENERATE] Failed to trigger builder job for jobId=${job.id}:`, err);
+      console.error(`[GENERATE] buildId=${buildId} builder trigger failed:`, err);
       if (err instanceof Error) {
-        console.error(`[GENERATE] Error stack:`, err.stack);
+        console.error(`[GENERATE] buildId=${buildId} Error stack:`, err.stack);
       }
       await updateJob(pool, job.id, {
         status: "failed",

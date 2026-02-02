@@ -25,6 +25,8 @@ export interface JobRow {
   updated_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
+  current_phase: string | null;
+  phase_updated_at: Date | null;
 }
 
 export interface InsertJobInput {
@@ -127,6 +129,14 @@ export async function updateJob(
     updates.push(`finished_at = $${i++}`);
     values.push(input.finished_at);
   }
+  if (input.current_phase !== undefined) {
+    updates.push(`current_phase = $${i++}`);
+    values.push(input.current_phase);
+  }
+  if (input.phase_updated_at !== undefined) {
+    updates.push(`phase_updated_at = $${i++}`);
+    values.push(input.phase_updated_at);
+  }
   if (updates.length === 0) {
     return getJobById(pool, id);
   }
@@ -155,5 +165,7 @@ function mapRow(r: Record<string, unknown>): JobRow {
     updated_at: r.updated_at as Date,
     started_at: r.started_at as Date | null,
     finished_at: r.finished_at as Date | null,
+    current_phase: (r.current_phase as string | null) ?? null,
+    phase_updated_at: (r.phase_updated_at as Date | null) ?? null,
   };
 }

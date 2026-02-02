@@ -20,8 +20,17 @@ const DEFAULT_BUDGET: CreditBudget = 30;
 
 const gcsBucket = process.env.GCS_BUCKET ?? "";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function getDbPool() {
   return getPool();
+}
+
+/** Parse optional X-Build-Id header; if valid UUID, use as job id (buildId). */
+function parseBuildIdHeader(header: string | undefined): string | undefined {
+  if (typeof header !== "string" || !header.trim()) return undefined;
+  const s = header.trim();
+  return UUID_REGEX.test(s) ? s : undefined;
 }
 
 function parseGsUrl(gs: string): { bucket: string; path: string } | null {
@@ -79,9 +88,12 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const fullScope = [...scopeFromPrompt, ...scopeFromItems, ...scopeFromBlocks];
     const scopeResult = getScopeBudgetResult(fullScope, DEFAULT_BUDGET);
     try {
+      console.log(`[JOBS] buildId=${buildId} triggering builder mode=${mode}`);
       await triggerBuilderJob(job.id, mode);
       await updateJob(pool, job.id, { status: "building" }); // Maps to "running" in API
+      console.log(`[JOBS] buildId=${buildId} builder triggered status=building`);
     } catch (err) {
+      console.error(`[JOBS] buildId=${buildId} builder trigger failed:`, err);
       await updateJob(pool, job.id, {
         status: "failed",
         rejection_reason: err instanceof Error ? err.message : "Failed to start builder",

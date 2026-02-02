@@ -4,6 +4,7 @@ import { healthRoutes } from "./routes/health.js";
 import { jobRoutes } from "./routes/jobs.js";
 import { generateRoutes } from "./routes/generate.js";
 import { interpretRoutes } from "./routes/interpret.js";
+import { debugRoutes } from "./routes/debug.js";
 
 process.on("uncaughtException", (err) => {
   console.error("[FATAL] Uncaught exception:", err);
@@ -26,7 +27,7 @@ async function start() {
   await app.register(cors, {
     origin: true,
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Build-Id"],
     optionsSuccessStatus: 204,
   });
 
@@ -42,6 +43,7 @@ async function start() {
   await app.register(interpretRoutes, { prefix: "/" });
   await app.register(jobRoutes, { prefix: "/jobs" });
   await app.register(generateRoutes, { prefix: "/generate" });
+  await app.register(debugRoutes, { prefix: "/debug" });
 
   const port = Number(process.env.PORT ?? 8080);
   const host = process.env.HOST ?? "0.0.0.0";

@@ -25,11 +25,11 @@ async function run() {
     const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
     for (const f of files) {
       const name = f.replace(/\.sql$/, "");
-      const [{ rows }] = await client.query(
+      const result = await client.query(
         "SELECT 1 FROM _migrations WHERE name = $1",
         [name]
       );
-      if (rows.length > 0) {
+      if (result.rows.length > 0) {
         console.log("Skip (already applied):", name);
         continue;
       }

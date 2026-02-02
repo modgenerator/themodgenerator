@@ -1,19 +1,20 @@
 -- Complete jobs table schema (single migration)
 -- This replaces incremental migrations 001 and 002
 
--- Create enum type for job status
-DO $$ BEGIN
-  CREATE TYPE job_status AS ENUM (
-    'created',
-    'planned',
-    'rejected',
-    'queued',
-    'building',
-    'succeeded',
-    'failed'
-  );
-EXCEPTION
-  WHEN duplicate_object THEN null;
+-- Create enum type for job status (only if it does not exist)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_status') THEN
+    CREATE TYPE job_status AS ENUM (
+      'created',
+      'planned',
+      'rejected',
+      'queued',
+      'building',
+      'succeeded',
+      'failed'
+    );
+  END IF;
 END $$;
 
 -- Create jobs table
@@ -49,8 +50,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger
-DROP TRIGGER IF EXISTS jobs_updated_at ON jobs;
-CREATE TRIGGER jobs_updated_at
-  BEFORE UPDATE ON jobs
-  FOR EACH ROW
-  EXECUTE FUNCTION set_updated_at();
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'jobs_updated_at') THEN
+    CREATE TRIGGER jobs_updated_at
+      BEFORE UPDATE ON jobs
+      FOR EACH ROW
+      EXECUTE FUNCTION set_updated_at();
+  END IF;
+END $$;

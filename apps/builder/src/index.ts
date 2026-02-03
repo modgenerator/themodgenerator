@@ -25,7 +25,6 @@ import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { getPool, getJobById, updateJob } from "@themodgenerator/db";
 import {
-  fromSpec,
   composeTier1Stub,
   materializeTier1,
   materializeTier1WithPlans,
@@ -41,7 +40,7 @@ import {
 } from "@themodgenerator/generator";
 import { validateSpec } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
-import { createHelloWorldSpec, expandSpecTier1 } from "@themodgenerator/spec";
+import { expandSpecTier1 } from "@themodgenerator/spec";
 
 // Continue debug logging after imports are available
 console.log("FILES IN CWD:", readdirSync("."));
@@ -69,12 +68,12 @@ const JOB_ID: string = requireEnv("JOB_ID");
 const DATABASE_URL: string = requireEnv("DATABASE_URL");
 const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
 
-/** Execution mode: prefer MODE from Cloud Run (API), else FORCE_TEST_MODE. */
-function getExecutionMode(): "build" | "test" {
-  const fromApi = process.env.MODE;
-  if (fromApi === "build" || fromApi === "test") return fromApi;
-  const v = process.env.FORCE_TEST_MODE;
-  return v === "1" || v === "true" ? "test" : "build";
+/** Require MODE=build. Only execution path is real build → JAR upload → completed. */
+function requireModeBuild(): void {
+  if (process.env.MODE !== "build") {
+    console.error("[BUILDER] FATAL: MODE must be 'build'. Got:", process.env.MODE);
+    process.exit(1);
+  }
 }
 
 console.log("[BUILDER] Environment check:", {
@@ -84,7 +83,7 @@ console.log("[BUILDER] Environment check:", {
   databaseUrlLength: DATABASE_URL.length,
   hasGcsBucket: true,
   gcsBucket: GCS_BUCKET,
-  mode: getExecutionMode(),
+  mode: "build",
 });
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
@@ -172,10 +171,6 @@ async function runGradle(
   buildId?: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const bid = buildId ?? "unknown";
-  const currentMode = getExecutionMode();
-  if (currentMode === "test") {
-    throw new Error("FATAL: Gradle execution is forbidden in test mode. This is a programming error.");
-  }
   return new Promise((resolve, reject) => {
     const gradleEnv = {
       ...process.env,
@@ -239,9 +234,9 @@ async function runGradle(
 }
 
 async function main(): Promise<void> {
+  requireModeBuild();
   const buildId = JOB_ID;
-  const mode = getExecutionMode();
-  console.log(`[BUILDER] buildId=${buildId} main started mode=${mode}`);
+  console.log(`[BUILDER] buildId=${buildId} main started (build mode only)`);
   console.log(`[BUILDER] buildId=${buildId} connecting to database`);
   const pool = getPool(DATABASE_URL);
   console.log(`[BUILDER] buildId=${buildId} database pool created`);
@@ -268,12 +263,7 @@ async function main(): Promise<void> {
     mkdirSync(workDir, { recursive: true });
     console.log("[BUILDER] Work directory created");
     
-    // In test mode, always generate hello-world mod (ignore prompt)
-    let specToUse = job.spec_json;
-    if (mode === "test") {
-      console.log("[BUILDER] Test mode: generating hello-world spec");
-      specToUse = createHelloWorldSpec("test_mod", "Test Mod");
-    }
+    const specToUse = job.spec_json;
     if (!specToUse) {
       console.error("[BUILDER] FATAL: Missing spec_json in job");
       await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
@@ -289,13 +279,8 @@ async function main(): Promise<void> {
       // If Tier 1 or any gate throws, proceed with spec; do not reject
     }
 
-    if (mode === "test") {
-      console.log(`[BUILDER] buildId=${buildId} generating hello-world from spec`);
-      fromSpec(specToUse, workDir);
-      console.log(`[BUILDER] buildId=${buildId} Fabric project generated`);
-    } else {
-      console.log(`[BUILDER] buildId=${buildId} build mode: Tier 1 materialized project`);
-      const expanded = expandSpecTier1(specToUse);
+    console.log(`[BUILDER] buildId=${buildId} Tier 1 materialized project`);
+    const expanded = expandSpecTier1(specToUse);
       await logPhase(pool, buildId, "world_interactions");
       const assets = composeTier1Stub(expanded.descriptors);
       const prompt = job.prompt ?? "";
@@ -376,43 +361,7 @@ async function main(): Promise<void> {
       writeMaterializedFiles(files, workDir);
       copyFabricWrapperTo(workDir);
       console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");
-    }
 
-    if (mode === "test") {
-      console.log(`[BUILDER] buildId=${buildId} test mode: skipping Gradle`);
-      const requiredFiles = [
-        "build.gradle",
-        "settings.gradle",
-        "gradlew",
-        "src/main/java",
-      ];
-      const missingFiles: string[] = [];
-      for (const file of requiredFiles) {
-        const filePath = join(workDir, file);
-        if (!existsSync(filePath)) {
-          missingFiles.push(file);
-        }
-      }
-      if (missingFiles.length > 0) {
-        throw new Error(`FATAL: Required files missing in test mode: ${missingFiles.join(", ")}`);
-      }
-      console.log("[BUILDER] Test mode: all required files validated (no JAR produced)");
-      logContent = "Test mode complete — Gradle skipped, no JAR produced.\n";
-      writeFileSync(logPath, logContent, "utf8");
-      const logKey = `logs/${JOB_ID}/build.log`;
-      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
-      await updateJob(pool, JOB_ID, {
-        status: "failed",
-        finished_at: new Date(),
-        current_phase: "completed",
-        phase_updated_at: new Date(),
-        rejection_reason: "Test mode: no JAR produced; run in build mode for download.",
-        log_path: `gs://${GCS_BUCKET}/${logKey}`,
-      });
-      console.log("[BUILDER] Test mode complete — job marked failed (no artifact)");
-      return;
-    }
-    
     const gradlewPath = join(workDir, "gradlew");
     if (!existsSync(gradlewPath)) {
       throw new Error(`FATAL: gradlew not found at ${gradlewPath}. Wrapper must be vendored, not generated at runtime.`);

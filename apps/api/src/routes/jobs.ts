@@ -21,12 +21,6 @@ const DEFAULT_BUDGET: CreditBudget = 30;
 
 const gcsBucket = process.env.GCS_BUCKET ?? "";
 
-/** Execution mode: "build" unless FORCE_TEST_MODE is set (internal only, never from user input). */
-function getExecutionMode(): "build" | "test" {
-  const v = process.env.FORCE_TEST_MODE;
-  return v === "1" || v === "true" ? "test" : "build";
-}
-
 function getDbPool() {
   return getPool();
 }
@@ -43,7 +37,6 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
     }
-    const mode = getExecutionMode();
     const pool = getDbPool();
     const spec = planSpec(prompt);
     // Validation may annotate metadata but must not block job creation (no Tier 1 gating)
@@ -54,7 +47,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     }
     const job = await insertJob(pool, {
       prompt,
-      mode,
+      mode: "build",
       status: "queued",
       spec_json: spec,
     });
@@ -98,8 +91,8 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const allPlans = [...itemPlans, ...blockPlans];
     const aggregatedPlan = aggregateExecutionPlans(allPlans);
     try {
-      console.log(`[JOBS] buildId=${buildId} triggering builder mode=${mode}`);
-      await triggerBuilderJob(job.id, mode);
+      console.log(`[JOBS] buildId=${buildId} triggering builder`);
+      await triggerBuilderJob(job.id, "build");
       await updateJob(pool, job.id, { status: "building" }); // Maps to "running" in API
       console.log(`[JOBS] buildId=${buildId} builder triggered status=building`);
     } catch (err) {

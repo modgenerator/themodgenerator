@@ -16,12 +16,6 @@ function parseBuildIdHeader(header: string | undefined): string | undefined {
   return UUID_REGEX.test(s) ? s : undefined;
 }
 
-/** Execution mode: "build" unless FORCE_TEST_MODE is set (internal only, never from user input). */
-function getExecutionMode(): "build" | "test" {
-  const v = process.env.FORCE_TEST_MODE;
-  return v === "1" || v === "true" ? "test" : "build";
-}
-
 export const generateRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { prompt: string } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
@@ -32,7 +26,6 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
     }
     
-    const mode = getExecutionMode();
     const pool = getDbPool();
     
     const spec = planSpec(prompt);
@@ -46,15 +39,15 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     const job = await insertJob(pool, {
       id: buildIdFromHeader,
       prompt,
-      mode,
+      mode: "build",
       status: "queued",
       spec_json: spec,
     });
     const buildId = job.id;
     
     try {
-      console.log(`[GENERATE] buildId=${buildId} triggering builder mode=${mode}`);
-      await triggerBuilderJob(job.id, mode);
+      console.log(`[GENERATE] buildId=${buildId} triggering builder`);
+      await triggerBuilderJob(job.id, "build");
       console.log(`[GENERATE] buildId=${buildId} builder triggered`);
       await updateJob(pool, job.id, { status: "building" });
       return reply.status(200).send({ jobId: job.id, status: "queued" });

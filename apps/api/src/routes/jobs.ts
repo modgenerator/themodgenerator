@@ -14,7 +14,8 @@ import {
 } from "@themodgenerator/generator";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { validateSpec } from "@themodgenerator/validator";
-import { planSpec } from "../services/planner.js";
+import { interpretWithClarification } from "@themodgenerator/generator";
+import { planSpec, isBlockPrompt } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
 const DEFAULT_BUDGET: CreditBudget = 30;
@@ -56,26 +57,42 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({ error: "prompt is required and must be a non-empty string" });
     }
     const pool = getDbPool();
-    const spec = planSpec(prompt);
-    // Validation may annotate metadata but must not block job creation (no Tier 1 gating)
-    try {
-      validateSpec(spec, { prompt });
-    } catch {
-      // If Tier 1 or any gate fails/throws, proceed with spec; do not reject
-    }
     const job = await insertJob(pool, {
       prompt,
       mode: "build",
       status: "queued",
-      spec_json: spec,
     });
     const buildId = job.id;
+    const blockOnly = isBlockPrompt(prompt);
+    const clarificationResponse = interpretWithClarification(prompt, { blockOnly });
+    if (clarificationResponse.type === "request_clarification") {
+      await updateJob(pool, job.id, {
+        clarification_status: "asked",
+        clarification_question: clarificationResponse.message,
+      });
+      console.log(`[JOBS] jobId=${buildId} clarification_status=none->asked (conflict; blockOnly=${blockOnly})`);
+      return reply.status(200).send({
+        jobId: job.id,
+        needsClarification: true,
+        message: clarificationResponse.message,
+        examples: clarificationResponse.examples,
+      });
+    }
+    const resolvedPrompt = clarificationResponse.prompt;
+    const spec = planSpec(resolvedPrompt);
+    try {
+      validateSpec(spec, { prompt: resolvedPrompt });
+    } catch {
+      // non-blocking
+    }
+    await updateJob(pool, job.id, { spec_json: spec, clarification_status: "skipped" });
+    console.log(`[JOBS] jobId=${buildId} clarification_status=skipped resolvedPromptUsed=false`);
     const expanded = expandSpecTier1(spec);
-    const scopeFromPrompt = expandPromptToScope(prompt);
+    const scopeFromPrompt = expandPromptToScope(resolvedPrompt);
     const scopeFromItems = expanded.items.flatMap((item, i) =>
       expandIntentToScope({
         name: item.name,
-        description: i === 0 && prompt ? prompt : undefined,
+        description: i === 0 && resolvedPrompt ? resolvedPrompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })
@@ -93,7 +110,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const itemPlans = expanded.items.map((item, i) =>
       planFromIntent({
         name: item.name,
-        description: i === 0 && prompt ? prompt : undefined,
+        description: i === 0 && resolvedPrompt ? resolvedPrompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })
@@ -177,6 +194,8 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       budget?: number;
       fitsBudget?: boolean;
       explanation?: string;
+      clarificationStatus?: string | null;
+      clarificationQuestion?: string | null;
     } = {
       id: job.id,
       status: apiStatus,
@@ -290,7 +309,129 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       creditTier: out.totalCredits ?? null,
       hasArtifactUrl: !!out.artifactUrl,
     };
+    out.clarificationStatus = job.clarification_status ?? null;
+    out.clarificationQuestion = job.clarification_question ?? null;
     console.log(`[JOBS] buildId=${job.id} final payload to frontend:`, JSON.stringify(payloadSummary));
     return reply.status(200).send(out);
+  });
+
+  app.post<{ Params: { id: string }; Body: { answer: string } }>("/:id/clarification", async (req, reply) => {
+    const jobId = req.params.id;
+    const answer = typeof req.body?.answer === "string" ? req.body.answer.trim() : "";
+    if (!answer) {
+      return reply.status(400).send({ error: "clarification answer is required and must be a non-empty string" });
+    }
+    const pool = getDbPool();
+    const job = await getJobById(pool, jobId);
+    if (!job) {
+      return reply.status(404).send({ error: "Job not found" });
+    }
+    const status = job.clarification_status ?? "none";
+    if (status !== "asked") {
+      return reply.status(400).send({
+        error: `Job is not awaiting clarification (clarification_status=${status}). Cannot submit answer.`,
+      });
+    }
+    const now = new Date();
+    const resolvedPrompt = `${job.prompt}\n\nClarification Answer: ${answer}`;
+    await updateJob(pool, jobId, {
+      clarification_answer: answer,
+      clarification_answered_at: now,
+      clarification_status: "answered",
+    });
+    console.log(`[JOBS] jobId=${jobId} clarification_status=asked->answered resolvedPrompt length=${resolvedPrompt.length}`);
+
+    const clarificationResponse = interpretWithClarification(resolvedPrompt, { blockOnly: isBlockPrompt(job.prompt) });
+    const conflictAfterAnswer = clarificationResponse.type === "request_clarification";
+    console.log(`[JOBS] jobId=${jobId} after clarification: conflictAfterAnswer=${conflictAfterAnswer} resolvedPromptUsed=true`);
+
+    if (conflictAfterAnswer) {
+      await updateJob(pool, jobId, {
+        status: "failed",
+        rejection_reason: "Clarification did not resolve ambiguity. Please rephrase.",
+        current_phase: "failed",
+        phase_updated_at: now,
+      });
+      return reply.status(200).send({
+        success: false,
+        jobId,
+        error: "Clarification did not resolve ambiguity. Please rephrase.",
+      });
+    }
+
+    const spec = planSpec(clarificationResponse.prompt);
+    try {
+      validateSpec(spec, { prompt: clarificationResponse.prompt });
+    } catch {
+      // non-blocking
+    }
+    await updateJob(pool, jobId, { spec_json: spec });
+    const expanded = expandSpecTier1(spec);
+    const scopeFromPrompt = expandPromptToScope(clarificationResponse.prompt);
+    const scopeFromItems = expanded.items.flatMap((item, i) =>
+      expandIntentToScope({
+        name: item.name,
+        description: i === 0 ? clarificationResponse.prompt : undefined,
+        category: "item",
+        material: item.material ?? "generic",
+      })
+    );
+    const scopeFromBlocks = expanded.blocks.flatMap((b) =>
+      expandIntentToScope({
+        name: b.name,
+        description: undefined,
+        category: "block",
+        material: b.material ?? "generic",
+      })
+    );
+    const fullScope = [...scopeFromPrompt, ...scopeFromItems, ...scopeFromBlocks];
+    const scopeResult = getScopeBudgetResult(fullScope, DEFAULT_BUDGET);
+    const itemPlans = expanded.items.map((item, i) =>
+      planFromIntent({
+        name: item.name,
+        description: i === 0 ? clarificationResponse.prompt : undefined,
+        category: "item",
+        material: item.material ?? "generic",
+      })
+    );
+    const blockPlans = expanded.blocks.map((b) =>
+      planFromIntent({
+        name: b.name,
+        description: undefined,
+        category: "block",
+        material: b.material ?? "generic",
+      })
+    );
+    const allPlans = [...itemPlans, ...blockPlans];
+    const aggregatedPlan = aggregateExecutionPlans(allPlans);
+    try {
+      await triggerBuilderJob(jobId, "build");
+      await updateJob(pool, jobId, { status: "building" });
+    } catch (err) {
+      console.error(`[JOBS] jobId=${jobId} builder trigger failed after clarification:`, err);
+      await updateJob(pool, jobId, {
+        status: "failed",
+        rejection_reason: err instanceof Error ? err.message : "Failed to start builder",
+      });
+      return reply.status(502).send({ error: "Builder could not be started", jobId });
+    }
+    const expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
+    const safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
+    return reply.status(200).send({
+      success: true,
+      jobId,
+      executionPlan: {
+        systems: aggregatedPlan.systems,
+        explanation: aggregatedPlan.explanation,
+        upgradePath: aggregatedPlan.upgradePath,
+        futureExpansion: aggregatedPlan.futureExpansion,
+      },
+      expectationContract,
+      safetyDisclosure,
+      scopeSummary: scopeResult.scopeSummary,
+      totalCredits: scopeResult.totalCredits,
+      fitsBudget: scopeResult.fitsBudget,
+      explanation: scopeResult.explanation,
+    });
   });
 };

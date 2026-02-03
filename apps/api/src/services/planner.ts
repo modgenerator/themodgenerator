@@ -67,7 +67,7 @@ function contentIdFromName(name: string): string {
   return id;
 }
 
-/** True when the prompt clearly describes a block (e.g. "block", "ore"). */
-function isBlockPrompt(prompt: string): boolean {
+/** True when the prompt clearly describes a block (e.g. "block", "ore"). Exported for clarification gating (block-only = skip cosmetic ask). */
+export function isBlockPrompt(prompt: string): boolean {
   return /\b(block|blocks|ore)\b/i.test(prompt);
 }

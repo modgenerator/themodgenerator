@@ -5,6 +5,7 @@ export {
   updateJob,
   type JobRow,
   type JobStatus,
+  type ClarificationStatus,
   type InsertJobInput,
   type UpdateJobInput,
 } from "./jobs.js";

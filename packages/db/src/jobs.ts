@@ -10,6 +10,8 @@ export type JobStatus =
   | "succeeded"
   | "failed";
 
+export type ClarificationStatus = "none" | "asked" | "answered" | "skipped";
+
 export interface JobRow {
   id: string;
   user_id: string | null;
@@ -27,6 +29,10 @@ export interface JobRow {
   finished_at: Date | null;
   current_phase: string | null;
   phase_updated_at: Date | null;
+  clarification_status: ClarificationStatus | null;
+  clarification_question: string | null;
+  clarification_answer: string | null;
+  clarification_answered_at: Date | null;
 }
 
 export interface InsertJobInput {
@@ -52,6 +58,10 @@ export interface UpdateJobInput {
   finished_at?: Date | null;
   current_phase?: string | null;
   phase_updated_at?: Date | null;
+  clarification_status?: ClarificationStatus | null;
+  clarification_question?: string | null;
+  clarification_answer?: string | null;
+  clarification_answered_at?: Date | null;
 }
 
 export async function insertJob(
@@ -139,6 +149,22 @@ export async function updateJob(
     updates.push(`phase_updated_at = $${i++}`);
     values.push(input.phase_updated_at);
   }
+  if (input.clarification_status !== undefined) {
+    updates.push(`clarification_status = $${i++}`);
+    values.push(input.clarification_status);
+  }
+  if (input.clarification_question !== undefined) {
+    updates.push(`clarification_question = $${i++}`);
+    values.push(input.clarification_question);
+  }
+  if (input.clarification_answer !== undefined) {
+    updates.push(`clarification_answer = $${i++}`);
+    values.push(input.clarification_answer);
+  }
+  if (input.clarification_answered_at !== undefined) {
+    updates.push(`clarification_answered_at = $${i++}`);
+    values.push(input.clarification_answered_at);
+  }
   if (updates.length === 0) {
     return getJobById(pool, id);
   }
@@ -169,5 +195,9 @@ function mapRow(r: Record<string, unknown>): JobRow {
     finished_at: r.finished_at as Date | null,
     current_phase: (r.current_phase as string | null) ?? null,
     phase_updated_at: (r.phase_updated_at as Date | null) ?? null,
+    clarification_status: (r.clarification_status as JobRow["clarification_status"]) ?? "none",
+    clarification_question: (r.clarification_question as string | null) ?? null,
+    clarification_answer: (r.clarification_answer as string | null) ?? null,
+    clarification_answered_at: (r.clarification_answered_at as Date | null) ?? null,
   };
 }

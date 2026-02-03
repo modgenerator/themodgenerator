@@ -12,9 +12,12 @@ import { clarificationGate } from "./clarification.js";
 import { analyzePromptIntent } from "./prompt-understanding.js";
 
 export { analyzePromptIntent, type PromptAnalysis, type PromptIssue } from "./prompt-understanding.js";
-export { clarificationGate, type ClarificationResponse } from "./clarification.js";
+export { clarificationGate, isCosmeticContradiction, type ClarificationResponse, type ClarificationGateOptions } from "./clarification.js";
 
 /** Single entry point: analyze + clarification gate. Caller proceeds with response.prompt if type === "proceed". */
-export function interpretWithClarification(prompt: string): ClarificationResponse {
-  return clarificationGate(analyzePromptIntent(prompt));
+export function interpretWithClarification(
+  prompt: string,
+  options?: { blockOnly?: boolean }
+): ClarificationResponse {
+  return clarificationGate(analyzePromptIntent(prompt), options);
 }

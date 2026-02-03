@@ -92,6 +92,15 @@ describe("clarificationGate", () => {
     assert.strictEqual(response.type, "proceed");
     assert.ok(response.prompt.length > 0);
   });
+
+  it('"hot frozen cheese block" with blockOnly → proceed (cosmetic gating; no second ask)', () => {
+    const analysis = analyzePromptIntent("hot frozen cheese block");
+    assert.ok(analysis.issues.some((i) => i.type === "contradiction"));
+    const responseWithoutBlockOnly = clarificationGate(analysis);
+    assert.strictEqual(responseWithoutBlockOnly.type, "request_clarification");
+    const responseWithBlockOnly = clarificationGate(analysis, { blockOnly: true });
+    assert.strictEqual(responseWithBlockOnly.type, "proceed", "block-only + cosmetic contradiction must proceed without asking");
+  });
 });
 
 describe("interpretWithClarification invariants", () => {

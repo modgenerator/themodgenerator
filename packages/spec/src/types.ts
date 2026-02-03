@@ -24,7 +24,14 @@ export type ModSpecV1 = {
   assetsRequired?: AssetRef[];
   /** Human-readable constraints: allowed, rejected, approximations. */
   constraintsReport?: ConstraintsReport;
+  /** Behavior constraints from interpreter (e.g. no tools/weapons, pickaxe mining). */
+  constraints?: ModSpecConstraints;
 };
+
+export interface ModSpecConstraints {
+  forbidToolsWeapons?: boolean;
+  requirePickaxeMining?: boolean;
+}
 
 export type FeatureKey =
   | "hello-world"

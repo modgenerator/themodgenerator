@@ -97,13 +97,21 @@ function editDistance(a: string, b: string): number {
   return dp[m][n];
 }
 
-/** Normalize word: apply known corrections, then fuzzy match to concept list if close. */
+/** Common words we must never fuzzy-replace with a concept (would poison ids/names). */
+const STOP_WORDS = new Set([
+  "add", "a", "an", "new", "the", "it", "should", "be", "with", "from", "into", "or", "no", "and", "in", "to",
+  "is", "are", "was", "were", "have", "has", "had", "do", "does", "did", "can", "could", "will", "would",
+  "may", "might", "must", "shall", "need", "dare", "ought", "used", "go", "so", "as", "at", "by", "for", "of", "on",
+]);
+
+/** Normalize word: apply known corrections, then fuzzy match to concept list if close. Never replace stop words. */
 function normalizeWord(word: string): string {
   const lower = word.toLowerCase().replace(/[^a-z]/g, "");
   if (!lower) return word;
+  if (STOP_WORDS.has(lower)) return lower;
   const corrected = SPELLING_CORRECTIONS[lower] ?? lower;
   if (CONCEPT_WORDS.has(corrected)) return corrected;
-  // Fuzzy: if edit distance 1–2 to a concept, use it (spelling tolerance)
+  // Fuzzy: if edit distance 1–2 to a concept, use it (spelling tolerance only)
   let best = corrected;
   let bestDist = 3;
   for (const c of CONCEPT_WORDS) {

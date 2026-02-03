@@ -46,21 +46,21 @@ function collectIds(assets: AssetKey[]): { itemIds: string[]; blockIds: string[]
   };
 }
 
-function itemModelJson(id: string): string {
+function itemModelJson(modId: string, id: string): string {
   return `{
   "parent": "${CANONICAL_MODEL_ITEM}",
   "textures": {
-    "layer0": "item/${id}"
+    "layer0": "${modId}:item/${id}"
   }
 }
 `;
 }
 
-function blockModelJson(id: string): string {
+function blockModelJson(modId: string, id: string): string {
   return `{
   "parent": "${CANONICAL_MODEL_BLOCK}",
   "textures": {
-    "all": "block/${id}"
+    "all": "${modId}:block/${id}"
   }
 }
 `;
@@ -185,7 +185,7 @@ export function assetKeysToFiles(
     });
     files.push({
       path: `${baseAssets}/models/item/${id}.json`,
-      contents: itemModelJson(id),
+      contents: itemModelJson(modId, id),
     });
   }
   for (const id of blockIds) {
@@ -201,7 +201,7 @@ export function assetKeysToFiles(
     });
     files.push({
       path: `${baseAssets}/models/block/${id}.json`,
-      contents: blockModelJson(id),
+      contents: blockModelJson(modId, id),
     });
     files.push({
       path: `${baseAssets}/blockstates/${id}.json`,

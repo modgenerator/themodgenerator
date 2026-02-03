@@ -38,7 +38,7 @@ import {
   type MaterializedFile,
   type CreditBudget,
 } from "@themodgenerator/generator";
-import { validateSpec, validateModSpecV2, validateRecipes } from "@themodgenerator/validator";
+import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16 } from "./texture-png.js";
 import { validateTexturePngFile } from "./texture-validation.js";
@@ -307,13 +307,17 @@ async function main(): Promise<void> {
       await logPhase(pool, buildId, "validated");
       specToUse = expandedModSpecV2ToV1(expandedV2);
     } else {
-      try {
-        const validation = validateSpec(specToUse, { prompt: job.prompt });
-        if (!validation.valid) {
-          console.log(`[BUILDER] buildId=${buildId} validation note (non-blocking): ${validation.reason ?? validation.gate}`);
-        }
-      } catch {
-        // If Tier 1 or any gate throws, proceed with spec; do not reject
+      const validation = validateSpec(specToUse, { prompt: job.prompt });
+      if (!validation.valid) {
+        const msg = [validation.gate, validation.reason].filter(Boolean).join(": ");
+        console.error(`[BUILDER] buildId=${buildId} Spec validation failed: ${msg}`);
+        await updateJob(pool, JOB_ID, {
+          status: "failed",
+          rejection_reason: `Validation (${validation.gate}): ${validation.reason ?? "invalid spec"}`,
+          current_phase: "failed",
+          phase_updated_at: new Date(),
+        });
+        process.exit(1);
       }
       const recipeCheck = validateRecipes(specToUse);
       if (!recipeCheck.valid) {
@@ -322,6 +326,18 @@ async function main(): Promise<void> {
         await updateJob(pool, JOB_ID, {
           status: "failed",
           rejection_reason: `Recipe validation: ${msg}`,
+          current_phase: "failed",
+          phase_updated_at: new Date(),
+        });
+        process.exit(1);
+      }
+      const hygieneCheck = validateSpecHygiene(specToUse);
+      if (!hygieneCheck.valid) {
+        const msg = hygieneCheck.errors.join("; ");
+        console.error(`[BUILDER] buildId=${buildId} Spec hygiene failed: ${msg}`);
+        await updateJob(pool, JOB_ID, {
+          status: "failed",
+          rejection_reason: `Spec hygiene: ${msg}`,
           current_phase: "failed",
           phase_updated_at: new Date(),
         });

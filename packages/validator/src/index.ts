@@ -5,6 +5,7 @@ import { validateFabricVersion } from "./fabric-version.js";
 import { validateTextureGate } from "./texture-gate.js";
 import { validateSpecConsistency } from "./spec-consistency.js";
 import { validateRecipes } from "./validate-recipes.js";
+import { validateSpecHygiene } from "./validate-spec-hygiene.js";
 import {
   validateTier1,
   TIER1_NO_FEATURES,
@@ -28,6 +29,20 @@ export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): Va
       name: "recipes",
       fn: () => {
         const r = validateRecipes(spec);
+        return { valid: r.valid, reason: r.errors.join("; ") };
+      },
+    },
+    {
+      name: "spec-hygiene",
+      fn: () => {
+        const r = validateSpecHygiene(spec);
+        return { valid: r.valid, reason: r.errors.join("; ") };
+      },
+    },
+    {
+      name: "behavior-compliance",
+      fn: () => {
+        const r = validateBehaviorCompliance(spec);
         return { valid: r.valid, reason: r.errors.join("; ") };
       },
     },
@@ -63,3 +78,7 @@ export type { ValidateModSpecV2Result } from "./validate-modspec-v2.js";
 export { validateModSpecV2 } from "./validate-modspec-v2.js";
 export type { ValidateRecipesResult } from "./validate-recipes.js";
 export { validateRecipes } from "./validate-recipes.js";
+export type { ValidateSpecHygieneResult } from "./validate-spec-hygiene.js";
+export { validateSpecHygiene } from "./validate-spec-hygiene.js";
+export type { ValidateBehaviorComplianceResult } from "./validate-behavior-compliance.js";
+export { validateBehaviorCompliance } from "./validate-behavior-compliance.js";

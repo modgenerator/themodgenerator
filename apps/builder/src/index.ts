@@ -41,6 +41,7 @@ import {
 import { validateSpec, validateModSpecV2, validateRecipes } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16 } from "./texture-png.js";
+import { validateTexturePngFile } from "./texture-validation.js";
 import {
   expandSpecTier1,
   isModSpecV2,
@@ -105,12 +106,10 @@ async function logPhase(
   await updateJob(pool, buildId, { current_phase: phase, phase_updated_at: now });
 }
 
-const MIN_TEXTURE_SIZE_BYTES = 1024;
-
 /**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
- * .png files with empty contents get a real 16x16 opaque PNG (material color + noise).
- * Non-empty .png contents are treated as UTF-8 (e.g. base64) only when not used for placeholder path.
+ * .png files with empty contents get a real 32x32 opaque PNG (material color + noise).
+ * Non-empty .png contents are treated as base64 when applicable.
  */
 function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
   for (const file of files) {
@@ -135,11 +134,13 @@ function writeMaterializedFiles(files: MaterializedFile[], workDir: string): voi
 }
 
 /**
- * Fail fast if any texture PNG is missing, 0 bytes, or too small (would render broken in-game).
+ * Fail fast if any texture PNG is missing or fails decode/opacity/variation validation.
+ * Validation: PNG decodes, width/height >= 16, not fully transparent, not a single flat color.
  */
 function validateTexturePngs(files: MaterializedFile[], workDir: string): void {
-  const pngPaths = files.filter((f) => f.path.endsWith(".png")).map((f) => join(workDir, f.path));
-  for (const fullPath of pngPaths) {
+  const pngFiles = files.filter((f) => f.path.endsWith(".png"));
+  for (const f of pngFiles) {
+    const fullPath = join(workDir, f.path);
     if (!existsSync(fullPath)) {
       throw new Error(`Texture missing: ${fullPath}`);
     }
@@ -147,9 +148,7 @@ function validateTexturePngs(files: MaterializedFile[], workDir: string): void {
     if (st.size === 0) {
       throw new Error(`Texture is 0 bytes: ${fullPath}`);
     }
-    if (st.size < MIN_TEXTURE_SIZE_BYTES) {
-      throw new Error(`Texture too small (${st.size} bytes), must be >= ${MIN_TEXTURE_SIZE_BYTES}: ${fullPath}`);
-    }
+    validateTexturePngFile(fullPath, f.path);
   }
 }
 

@@ -60,8 +60,8 @@ function hashToFloat(s: string): number {
 }
 
 /**
- * Generate a 32x32 RGBA image: base color + subtle noise. Alpha 255 everywhere (opaque).
- * Returns a valid PNG file as Buffer (typically >1KB after compression).
+ * Generate a 32x32 RGBA image: base color + per-pixel noise (deterministic from seed).
+ * Guarantees: alpha=255 everywhere (opaque), at least two distinct pixel values (noise ±12 per channel).
  */
 export function generateOpaquePng16x16(options: {
   material?: string;

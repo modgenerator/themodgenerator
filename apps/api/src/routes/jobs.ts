@@ -154,6 +154,8 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       status: "queued" | "running" | "completed" | "failed";
       error?: string;
       artifactUrl?: string | null;
+      currentPhase?: string | null;
+      phaseUpdatedAt?: string | null;
       executionPlan?: { systems: string[]; explanation: string[]; upgradePath?: string[]; futureExpansion?: string[] };
       capabilitySummary?: { hasUseAction: boolean; dealsDamage: boolean; appliesEffects: boolean };
       expectationContract?: { whatItDoes: string[]; howYouUseIt: string[]; limits: string[]; scalesWithCredits: string[] };
@@ -166,6 +168,13 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     } = {
       id: job.id,
       status: apiStatus,
+      currentPhase: job.current_phase ?? null,
+      phaseUpdatedAt:
+        job.phase_updated_at != null
+          ? (typeof job.phase_updated_at === "string"
+              ? job.phase_updated_at
+              : (job.phase_updated_at as Date).toISOString())
+          : null,
     };
     if (job.rejection_reason) {
       out.error = job.rejection_reason;

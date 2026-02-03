@@ -69,8 +69,10 @@ const JOB_ID: string = requireEnv("JOB_ID");
 const DATABASE_URL: string = requireEnv("DATABASE_URL");
 const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
 
-/** Execution mode: "build" unless FORCE_TEST_MODE is set. Ignore user/request mode. */
+/** Execution mode: prefer MODE from Cloud Run (API), else FORCE_TEST_MODE. */
 function getExecutionMode(): "build" | "test" {
+  const fromApi = process.env.MODE;
+  if (fromApi === "build" || fromApi === "test") return fromApi;
   const v = process.env.FORCE_TEST_MODE;
   return v === "1" || v === "true" ? "test" : "build";
 }
@@ -394,17 +396,20 @@ async function main(): Promise<void> {
       if (missingFiles.length > 0) {
         throw new Error(`FATAL: Required files missing in test mode: ${missingFiles.join(", ")}`);
       }
-      console.log("[BUILDER] Test mode: all required files validated");
-      logContent = "Test mode complete — Gradle skipped, files validated.\n";
+      console.log("[BUILDER] Test mode: all required files validated (no JAR produced)");
+      logContent = "Test mode complete — Gradle skipped, no JAR produced.\n";
       writeFileSync(logPath, logContent, "utf8");
       const logKey = `logs/${JOB_ID}/build.log`;
       await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
       await updateJob(pool, JOB_ID, {
-        status: "succeeded",
+        status: "failed",
         finished_at: new Date(),
+        current_phase: "completed",
+        phase_updated_at: new Date(),
+        rejection_reason: "Test mode: no JAR produced; run in build mode for download.",
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      console.log("[BUILDER] Test mode complete — exiting successfully");
+      console.log("[BUILDER] Test mode complete — job marked failed (no artifact)");
       return;
     }
     

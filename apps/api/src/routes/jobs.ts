@@ -31,6 +31,19 @@ function parseGsUrl(gs: string): { bucket: string; path: string } | null {
   return { bucket: m[1], path: m[2] };
 }
 
+/** Contract: progress 0–100 from phase/status. Frontend uses this for progress bar. */
+function phaseToProgress(phase: string | null, status: string): number {
+  if (status === "completed" || status === "failed") return 100;
+  if (status === "queued") return 0;
+  const map: Record<string, number> = {
+    prompt_parsed: 15,
+    world_interactions: 30,
+    behaviors: 50,
+    building_mod: 75,
+  };
+  return phase ? (map[phase] ?? 10) : 5;
+}
+
 export const jobRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { prompt: string } }>("/", async (req, reply) => {
     const prompt = req.body?.prompt;
@@ -131,7 +144,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     if (!job) {
       return reply.status(404).send({ error: "Job not found" });
     }
-    // Map internal status to API status
+    // Contract: GET /jobs/:id returns status only as "queued"|"running"|"completed"|"failed" (never "succeeded").
     const statusMap: Record<string, "queued" | "running" | "completed" | "failed"> = {
       queued: "queued",
       building: "running",
@@ -145,6 +158,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const out: {
       id: string;
       status: "queued" | "running" | "completed" | "failed";
+      progress: number;
       error?: string;
       artifactUrl?: string | null;
       currentPhase?: string | null;
@@ -161,6 +175,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     } = {
       id: job.id,
       status: apiStatus,
+      progress: 0,
       currentPhase: job.current_phase ?? null,
       phaseUpdatedAt:
         job.phase_updated_at != null
@@ -226,7 +241,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       out.expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
       out.safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
     }
-    // Artifact delivery: "completed" only when JAR exists and signed URL is generated. Never expose gs:// or bucket.
+    // Contract: when status is "completed", artifactUrl is always set (artifact_path exists and signing succeeded).
     if (apiStatus === "completed") {
       if (!job.artifact_path) {
         console.error(`[JOBS] buildId=${job.id} status=succeeded but artifact_path missing; returning failed`);
@@ -261,6 +276,8 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     } else {
       out.artifactUrl = null;
     }
+    // Contract: progress 0–100 for progress bar; derived from currentPhase and final status.
+    out.progress = phaseToProgress(out.currentPhase ?? null, out.status);
     const payloadSummary = {
       buildId: job.id,
       status: out.status,

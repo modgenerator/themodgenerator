@@ -5,10 +5,16 @@ export interface ValidationResult {
   reason?: string;
 }
 
-/** Spec consistency: no dangling references, valid modId pattern. */
+/** Hard rule: modId must not be derived from prompt; use fixed "generated". No spaces or long slugs. */
+const VALID_MOD_ID_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** Spec consistency: no dangling references, valid modId (must be "generated" or match pattern, no spaces). */
 export function validateSpecConsistency(spec: ModSpecV1): ValidationResult {
-  if (!/^[a-z][a-z0-9_]{0,63}$/.test(spec.modId)) {
-    return { valid: false, reason: "modId must be lowercase, start with a letter, and contain only letters, numbers, underscores (max 64 chars)." };
+  if (spec.modId !== "generated" && !VALID_MOD_ID_PATTERN.test(spec.modId)) {
+    return { valid: false, reason: "modId must be 'generated' or lowercase letters, numbers, underscores only (max 64 chars). It must not be derived from prompt text." };
+  }
+  if (/\s/.test(spec.modId)) {
+    return { valid: false, reason: "modId must not contain spaces." };
   }
   if (!spec.modName || spec.modName.length > 128) {
     return { valid: false, reason: "modName must be 1–128 characters." };

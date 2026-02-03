@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
+import { spawn, execSync } from "node:child_process";
 import { getPool, getJobById, updateJob } from "@themodgenerator/db";
 import {
   composeTier1Stub,
@@ -445,6 +445,32 @@ async function main(): Promise<void> {
     }
     console.log(`[BUILDER] buildId=${buildId} jar=${jarFile}`);
     const jarPath = join(jarDir, jarFile);
+    const modId = (specToUse as { modId?: string }).modId ?? "generated";
+    const recipesPrefix = `data/${modId}/recipes/`;
+    let jarList = "";
+    try {
+      jarList = execSync(`jar tf "${jarPath}"`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
+    } catch (e) {
+      console.error(`[BUILDER] buildId=${buildId} jar tf failed:`, e);
+      jarList = "";
+    }
+    const hasRecipes = jarList.split(/\r?\n/).some((line) => line.startsWith(recipesPrefix));
+    if (!hasRecipes) {
+      console.error(`[BUILDER] buildId=${buildId} JAR missing ${recipesPrefix}; failing job`);
+      const logKey = `logs/${JOB_ID}/build.log`;
+      logContent = `Build produced JAR but missing required data: ${recipesPrefix}`;
+      writeFileSync(logPath, logContent, "utf8");
+      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+      await updateJob(pool, JOB_ID, {
+        status: "failed",
+        finished_at: new Date(),
+        current_phase: "failed",
+        phase_updated_at: new Date(),
+        rejection_reason: `JAR is missing data/${modId}/recipes/. Generated resources must include both assets and data.`,
+        log_path: `gs://${GCS_BUCKET}/${logKey}`,
+      });
+      process.exit(1);
+    }
     const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;
     

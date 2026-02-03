@@ -32,6 +32,7 @@ import type { ExecutionPlan } from "../execution-plan.js";
 import type { FabricMaterializerTier1, MaterializedFile } from "./types.js";
 import { assetKeysToFiles } from "./asset-mapping.js";
 import { fabricScaffoldFiles } from "./fabric-scaffold.js";
+import { recipeDataFiles } from "./recipe-generator.js";
 import { behaviorFilesFromPlans } from "./behavior-generator.js";
 import { enrichTextureFilesWithVisualMetadata } from "./visual-enrichment.js";
 import { calculateCredits } from "../execution-plan.js";
@@ -48,7 +49,8 @@ export function materializeTier1(
 ): MaterializedFile[] {
   const scaffold = fabricScaffoldFiles(expanded);
   const assetFiles = assetKeysToFiles(expanded, assets);
-  const all = [...scaffold, ...assetFiles];
+  const recipeFiles = recipeDataFiles(expanded);
+  const all = [...scaffold, ...assetFiles, ...recipeFiles];
   return all.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -69,7 +71,8 @@ export function materializeTier1WithPlans(
   const visualLevel = creditsToVisualLevel(totalCredits);
   assetFiles = enrichTextureFilesWithVisualMetadata(assetFiles, expanded, visualLevel);
   const behaviorFiles = behaviorFilesFromPlans(expanded, itemPlans);
-  const all = [...scaffold, ...assetFiles, ...behaviorFiles];
+  const recipeFiles = recipeDataFiles(expanded);
+  const all = [...scaffold, ...assetFiles, ...behaviorFiles, ...recipeFiles];
   return all.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -86,3 +89,4 @@ export {
   planRequiresCustomItem,
   getItemClassNameForRegistration,
 } from "./behavior-generator.js";
+export { recipeDataFiles } from "./recipe-generator.js";

@@ -39,7 +39,7 @@ export function expandedModSpecV2ToV1(expanded: ExpandedModSpecV2): ModSpecV1 {
     schemaVersion: 1,
     minecraftVersion: SUPPORTED_MINECRAFT_VERSION,
     loader: SUPPORTED_LOADER,
-    modId: expanded.modId,
+    modId: "generated",
     modName: expanded.modName,
     features,
     items,

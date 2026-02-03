@@ -49,10 +49,31 @@ export {
 export type { ExpandedSpecTier1 } from "./expansion.js";
 export { expandSpecTier1 } from "./expansion.js";
 
+export type {
+  ModSpecV2,
+  ModSpecV2Material,
+  ModSpecV2Block,
+  ModSpecV2Item,
+  ModSpecV2Recipe,
+  ModSpecV2Worldgen,
+  ModSpecV2Tag,
+  MaterialCategory,
+  PowerProfile,
+  BlockKind,
+  RecipeType,
+} from "./modspec-v2.js";
+export { MODSPEC_V2_VERSION, SUPPORTED_MINECRAFT_V2, SUPPORTED_FABRIC_V2, isModSpecV2 } from "./modspec-v2.js";
+export type { ExpandedModSpecV2 } from "./rule-engine.js";
+export { expandModSpecV2 } from "./rule-engine.js";
+export { expandedModSpecV2ToV1 } from "./modspec-v2-to-v1.js";
+
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const modSpecV1JsonSchema = JSON.parse(
   readFileSync(join(__dirname, "schema.json"), "utf8")
+) as Record<string, unknown>;
+export const modSpecV2JsonSchema = JSON.parse(
+  readFileSync(join(__dirname, "modspec-v2-schema.json"), "utf8")
 ) as Record<string, unknown>;

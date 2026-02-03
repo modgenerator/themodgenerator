@@ -38,9 +38,14 @@ import {
   type MaterializedFile,
   type CreditBudget,
 } from "@themodgenerator/generator";
-import { validateSpec } from "@themodgenerator/validator";
+import { validateSpec, validateModSpecV2 } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
-import { expandSpecTier1 } from "@themodgenerator/spec";
+import {
+  expandSpecTier1,
+  isModSpecV2,
+  expandModSpecV2,
+  expandedModSpecV2ToV1,
+} from "@themodgenerator/spec";
 
 // Continue debug logging after imports are available
 console.log("FILES IN CWD:", readdirSync("."));
@@ -263,20 +268,40 @@ async function main(): Promise<void> {
     mkdirSync(workDir, { recursive: true });
     console.log("[BUILDER] Work directory created");
     
-    const specToUse = job.spec_json;
+    let specToUse = job.spec_json as Parameters<typeof expandSpecTier1>[0];
     if (!specToUse) {
       console.error("[BUILDER] FATAL: Missing spec_json in job");
       await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
       process.exit(1);
     }
-    // Validation may annotate metadata but must not block (no Tier 1 gating)
-    try {
-      const validation = validateSpec(specToUse, { prompt: job.prompt });
-      if (!validation.valid) {
-        console.log(`[BUILDER] buildId=${buildId} validation note (non-blocking): ${validation.reason ?? validation.gate}`);
+    await logPhase(pool, buildId, "spec_generated");
+
+    if (isModSpecV2(specToUse)) {
+      const expandedV2 = expandModSpecV2(specToUse);
+      await logPhase(pool, buildId, "rules_expanded");
+      const v2Validation = validateModSpecV2(expandedV2);
+      if (!v2Validation.valid) {
+        const msg = v2Validation.errors.join("; ");
+        console.error(`[BUILDER] buildId=${buildId} ModSpecV2 validation failed:`, msg);
+        await updateJob(pool, JOB_ID, {
+          status: "failed",
+          rejection_reason: `ModSpecV2 validation: ${msg}`,
+          current_phase: "failed",
+          phase_updated_at: new Date(),
+        });
+        process.exit(1);
       }
-    } catch {
-      // If Tier 1 or any gate throws, proceed with spec; do not reject
+      await logPhase(pool, buildId, "validated");
+      specToUse = expandedModSpecV2ToV1(expandedV2);
+    } else {
+      try {
+        const validation = validateSpec(specToUse, { prompt: job.prompt });
+        if (!validation.valid) {
+          console.log(`[BUILDER] buildId=${buildId} validation note (non-blocking): ${validation.reason ?? validation.gate}`);
+        }
+      } catch {
+        // If Tier 1 or any gate throws, proceed with spec; do not reject
+      }
     }
 
     console.log(`[BUILDER] buildId=${buildId} Tier 1 materialized project`);
@@ -360,6 +385,7 @@ async function main(): Promise<void> {
           : materializeTier1(expanded, assets);
       writeMaterializedFiles(files, workDir);
       copyFabricWrapperTo(workDir);
+      await logPhase(pool, buildId, "compiled");
       console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");
 
     const gradlewPath = join(workDir, "gradlew");
@@ -426,6 +452,7 @@ async function main(): Promise<void> {
     await uploadFile(jarPath, { bucket: GCS_BUCKET, destination: artifactKey, contentType: "application/java-archive" });
     writeFileSync(logPath, "Build succeeded.\n", "utf8");
     await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+    await logPhase(pool, buildId, "uploaded");
     await updateJob(pool, JOB_ID, {
       status: "succeeded",
       finished_at: new Date(),

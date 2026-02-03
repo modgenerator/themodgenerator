@@ -36,10 +36,15 @@ function phaseToProgress(phase: string | null, status: string): number {
   if (status === "completed" || status === "failed") return 100;
   if (status === "queued") return 0;
   const map: Record<string, number> = {
-    prompt_parsed: 15,
+    prompt_parsed: 5,
+    spec_generated: 10,
+    rules_expanded: 20,
+    validated: 25,
     world_interactions: 30,
-    behaviors: 50,
+    behaviors: 40,
+    compiled: 50,
     building_mod: 75,
+    uploaded: 95,
   };
   return phase ? (map[phase] ?? 10) : 5;
 }

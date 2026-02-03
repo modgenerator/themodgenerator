@@ -1,0 +1,141 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://themodgenerator.dev/schemas/ModSpecV2.json",
+  "title": "ModSpecV2",
+  "description": "Strict mod specification for deterministic pipeline; stats derived from rarity, not LLM",
+  "type": "object",
+  "required": ["schemaVersion", "namespace", "modId", "modName", "minecraftVersion", "fabricVersion"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "namespace": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "modId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+    "modName": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "minecraftVersion": { "type": "string" },
+    "fabricVersion": { "type": "string" },
+    "materials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category"],
+        "properties": {
+          "id": { "type": "string" },
+          "category": { "enum": ["gem", "ingot", "wood", "stone", "metal", "food", "misc"] },
+          "palette": { "type": "array", "items": { "type": "string" } },
+          "colorHints": { "type": "array", "items": { "type": "string" } },
+          "powerProfile": { "enum": ["default", "cosmetic", "glass_cannon", "tank", "utility"] },
+          "styleOverPower": { "type": "boolean" }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "textureSpec"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "enum": ["basic", "ore", "workstationLike"] },
+          "textureSpec": {
+            "type": "object",
+            "required": ["base"],
+            "properties": {
+              "base": { "enum": ["stone", "metal", "wood", "food", "gem", "generic"] },
+              "palette": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "miningSpec": {
+            "type": "object",
+            "properties": {
+              "toolTag": { "enum": ["pickaxe", "axe", "shovel", "hoe", "none"] },
+              "requiredLevel": { "type": "integer" },
+              "hardness": { "type": "number" }
+            }
+          },
+          "dropsSpec": {
+            "type": "object",
+            "required": ["itemId"],
+            "properties": {
+              "itemId": { "type": "string" },
+              "countMin": { "type": "integer" },
+              "countMax": { "type": "integer" },
+              "fortuneMultiplier": { "type": "number" }
+            }
+          },
+          "materialRef": { "type": "string" }
+        }
+      }
+    },
+    "worldgen": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["oreBlockId", "minY", "maxY", "veinSize", "veinsPerChunk"],
+        "properties": {
+          "oreBlockId": { "type": "string" },
+          "minY": { "type": "integer" },
+          "maxY": { "type": "integer" },
+          "veinSize": { "type": "integer" },
+          "veinsPerChunk": { "type": "number" },
+          "biomeTags": { "type": "array", "items": { "type": "string" } },
+          "rarityNotes": { "type": "string" }
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "materialRef"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "enum": ["gem", "raw", "ingot", "nugget", "tool", "armor", "food", "misc"] },
+          "materialRef": { "type": "string" }
+        }
+      }
+    },
+    "recipes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "inputs", "result"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "enum": ["crafting_shaped", "crafting_shapeless", "smelting", "blasting", "smoking", "campfire", "stonecutting", "smithing"] },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "count": { "type": "integer" },
+                "tag": { "type": "string" }
+              }
+            }
+          },
+          "result": {
+            "type": "object",
+            "required": ["id"],
+            "properties": { "id": { "type": "string" }, "count": { "type": "integer" } }
+          },
+          "experience": { "type": "number" },
+          "cookTimeTicks": { "type": "integer" }
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tagId", "category", "values"],
+        "properties": {
+          "tagId": { "type": "string" },
+          "category": { "type": "string" },
+          "values": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "autoExpandSets": { "type": "boolean" }
+  }
+}

@@ -9,7 +9,7 @@
     "build": "tsc && node scripts/copy-schema.mjs",
     "lint": "tsc --noEmit",
     "validate:schema": "node scripts/validate-schema.mjs",
-    "test": "npm run build && node --test dist/expansion.test.js"
+    "test": "npm run build && node --test dist/expansion.test.js dist/rule-engine.test.js"
   },
   "devDependencies": {
     "typescript": "~5.3.3"

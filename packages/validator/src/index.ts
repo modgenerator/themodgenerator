@@ -51,3 +51,5 @@ export {
   validateTextureGate,
   validateSpecConsistency,
 };
+export type { ValidateModSpecV2Result } from "./validate-modspec-v2.js";
+export { validateModSpecV2 } from "./validate-modspec-v2.js";

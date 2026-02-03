@@ -129,6 +129,12 @@ export type {
   AIHook,
 } from "./behavior/behavior-intelligence.js";
 export { synthesizeWorldIntegration } from "./world/world-integration.js";
+export type { RarityScore, ToolStats, ArmorStats, MaterialStatOverrides } from "./balance.js";
+export {
+  computeRarityScore,
+  deriveToolStats,
+  deriveArmorStats,
+} from "./balance.js";
 export type {
   WorldIntegrationPlan,
   RecipeSpec,

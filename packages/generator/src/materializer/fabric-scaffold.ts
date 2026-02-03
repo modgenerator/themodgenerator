@@ -2,7 +2,7 @@
  * Plane 3: Fabric scaffolding for Tier 1 only.
  * fabric.mod.json, ModMain.java with item and block registries.
  * Optional ExecutionPlan per item → custom item classes (e.g. lightning wand).
- * No creative tabs beyond default, no mixins, no events.
+ * Items and blocks are added to vanilla creative tabs so they appear in-game.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -135,6 +135,24 @@ function toJavaId(id: string): string {
   return id.replace(/-/g, "_");
 }
 
+/** Generate Java that adds registered items to the INGREDIENTS creative tab so they appear in-game. */
+function creativeTabItems(itemIds: string[]): string {
+  if (itemIds.length === 0) return "";
+  const addLines = itemIds
+    .map((id) => `			entries.add(Registries.ITEM.get(Identifier.of(MOD_ID, "${id}")));`)
+    .join("\n");
+  return `		ItemGroupEvents.modifyEntriesEvent(ItemGroups.INGREDIENTS).register(entries -> {\n${addLines}\n		});`;
+}
+
+/** Generate Java that adds registered block items to the BUILDING_BLOCKS creative tab. */
+function creativeTabBlocks(blockIds: string[]): string {
+  if (blockIds.length === 0) return "";
+  const addLines = blockIds
+    .map((id) => `			entries.add(Registries.ITEM.get(Identifier.of(MOD_ID, "${id}")));`)
+    .join("\n");
+  return `		ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS).register(entries -> {\n${addLines}\n		});`;
+}
+
 function modMainJava(
   modId: string,
   modName: string,
@@ -164,10 +182,12 @@ function modMainJava(
     "package net.themodgenerator." + javaPackage + ";",
     "",
     "import net.fabricmc.api.ModInitializer;",
+    "import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
     "import net.minecraft.item.BlockItem;",
     "import net.minecraft.item.Item;",
+    "import net.minecraft.item.ItemGroups;",
     "import net.minecraft.registry.Registries;",
     "import net.minecraft.registry.Registry;",
     "import net.minecraft.util.Identifier;",
@@ -178,6 +198,12 @@ function modMainJava(
   const initBody: string[] = [];
   if (hasItems) initBody.push(itemRegistrations);
   if (hasBlocks) initBody.push(blockRegistrations);
+  if (hasItems) {
+    initBody.push(creativeTabItems(expanded.items.map((i) => i.id)));
+  }
+  if (hasBlocks) {
+    initBody.push(creativeTabBlocks(expanded.blocks.map((b) => b.id)));
+  }
   initBody.push("		LOGGER.info(\"" + escapeJava(modName) + " initialized.\");");
 
   const body = [

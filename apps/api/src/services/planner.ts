@@ -1,11 +1,9 @@
-import type { ModSpecV1, ModItem, ModBlock, ModRecipe } from "@themodgenerator/spec";
-import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
+import type { ModSpecV1 } from "@themodgenerator/spec";
 
 /** Hard rule: modId is never derived from prompt. Use fixed id for deterministic packaging. */
 export const FIXED_MOD_ID = "generated";
 
 const MAX_ID_LEN = 32;
-const VALID_ID = /^[a-z][a-z0-9_]*$/;
 
 /**
  * Planner is DUMB: it does NOT infer content from prompt.

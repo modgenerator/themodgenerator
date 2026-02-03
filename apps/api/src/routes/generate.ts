@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
 import { getPool, insertJob, updateJob } from "@themodgenerator/db";
 import { validateSpec } from "@themodgenerator/validator";
-import { planSpec } from "../services/planner.js";
+import { interpretToSpec } from "@themodgenerator/generator";
+import { sanitizeSpec } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,15 +28,25 @@ export const generateRoutes: FastifyPluginAsync = async (app) => {
     }
     
     const pool = getDbPool();
-    
-    const spec = planSpec(prompt);
-    // Validation may annotate metadata but must not block job creation (no Tier 1 gating)
+
+    const interpretResult = interpretToSpec(prompt);
+    if (interpretResult.type === "request_clarification") {
+      return reply.status(400).send({
+        error: "Clarification needed",
+        message: interpretResult.message,
+        examples: interpretResult.examples,
+      });
+    }
+    if (!("spec" in interpretResult)) {
+      return reply.status(400).send({ error: "Could not produce a spec from prompt" });
+    }
+    const spec = sanitizeSpec(interpretResult.spec);
     try {
       validateSpec(spec, { prompt });
     } catch {
-      // If Tier 1 or any gate fails/throws, proceed with spec; do not reject
+      // non-blocking
     }
-    
+
     const job = await insertJob(pool, {
       id: buildIdFromHeader,
       prompt,

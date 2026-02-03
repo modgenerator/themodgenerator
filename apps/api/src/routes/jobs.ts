@@ -78,6 +78,9 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
         examples: interpretResult.examples,
       });
     }
+    if (!("spec" in interpretResult)) {
+      return reply.status(500).send({ error: "Interpreter did not return a spec" });
+    }
     const spec = sanitizeSpec(interpretResult.spec);
     try {
       validateSpec(spec, { prompt });
@@ -340,8 +343,8 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     });
     console.log(`[JOBS] jobId=${jobId} clarification_status=asked->answered resolvedPrompt length=${resolvedPrompt.length}`);
 
-    const clarificationResponse = interpretWithClarification(resolvedPrompt, { blockOnly: isBlockPrompt(job.prompt) });
-    const conflictAfterAnswer = clarificationResponse.type === "request_clarification";
+    const reInterpret = interpretToSpec(resolvedPrompt, { blockOnly: isBlockPrompt(job.prompt) });
+    const conflictAfterAnswer = reInterpret.type === "request_clarification";
     console.log(`[JOBS] jobId=${jobId} after clarification: conflictAfterAnswer=${conflictAfterAnswer} resolvedPromptUsed=true`);
 
     if (conflictAfterAnswer) {
@@ -358,19 +361,29 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const spec = planSpec(clarificationResponse.prompt);
+    if (!("spec" in reInterpret)) {
+      await updateJob(pool, jobId, {
+        status: "failed",
+        rejection_reason: "Could not produce spec after clarification",
+        current_phase: "failed",
+        phase_updated_at: now,
+      });
+      return reply.status(200).send({ success: false, jobId, error: "Could not produce spec after clarification" });
+    }
+
+    const spec = sanitizeSpec(reInterpret.spec);
     try {
-      validateSpec(spec, { prompt: clarificationResponse.prompt });
+      validateSpec(spec, { prompt: resolvedPrompt });
     } catch {
       // non-blocking
     }
     await updateJob(pool, jobId, { spec_json: spec });
     const expanded = expandSpecTier1(spec);
-    const scopeFromPrompt = expandPromptToScope(clarificationResponse.prompt);
+    const scopeFromPrompt = expandPromptToScope(resolvedPrompt);
     const scopeFromItems = expanded.items.flatMap((item, i) =>
       expandIntentToScope({
         name: item.name,
-        description: i === 0 ? clarificationResponse.prompt : undefined,
+        description: i === 0 ? resolvedPrompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })
@@ -388,7 +401,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const itemPlans = expanded.items.map((item, i) =>
       planFromIntent({
         name: item.name,
-        description: i === 0 ? clarificationResponse.prompt : undefined,
+        description: i === 0 ? resolvedPrompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })

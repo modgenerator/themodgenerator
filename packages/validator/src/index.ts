@@ -6,6 +6,7 @@ import { validateTextureGate } from "./texture-gate.js";
 import { validateSpecConsistency } from "./spec-consistency.js";
 import { validateRecipes } from "./validate-recipes.js";
 import { validateSpecHygiene } from "./validate-spec-hygiene.js";
+import { validateBehaviorCompliance } from "./validate-behavior-compliance.js";
 import {
   validateTier1,
   TIER1_NO_FEATURES,

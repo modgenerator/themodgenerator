@@ -55,9 +55,16 @@ export interface ModOre {
   recipeId?: string;
 }
 
+export interface ModRecipeIngredient {
+  id: string;
+  count?: number;
+}
+
 export interface ModRecipe {
   id: string;
   type: string;
+  /** Required for crafting_*; each entry references a spec item/block id. */
+  ingredients?: ModRecipeIngredient[];
   result: { id: string; count?: number };
 }
 

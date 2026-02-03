@@ -52,6 +52,8 @@ export {
   analyzePromptIntent,
   clarificationGate,
   interpretWithClarification,
+  interpretToSpec,
+  type InterpretToSpecResult,
 } from "./interpretation/index.js";
 export type {
   PromptAnalysis,

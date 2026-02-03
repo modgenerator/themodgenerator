@@ -175,9 +175,7 @@ export function expandModSpecV2(spec: ModSpecV2): ExpandedModSpecV2 {
   }
 
   blocks = blocks.map((b) =>
-    b.textureSpec?.base === "food" || (b.kind === "basic" && b.id?.toLowerCase().includes("cheese"))
-      ? enforceFoodBlockTexture(b)
-      : b
+    b.textureSpec?.base === "food" ? enforceFoodBlockTexture(b) : b
   );
 
   return {

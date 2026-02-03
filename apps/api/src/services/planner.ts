@@ -1,90 +1,72 @@
-import type { ModSpecV1 } from "@themodgenerator/spec";
-import { createHelloWorldSpec } from "@themodgenerator/spec";
+import type { ModSpecV1, ModItem, ModBlock, ModRecipe } from "@themodgenerator/spec";
+import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
 
 /** Hard rule: modId is never derived from prompt. Use fixed id for deterministic packaging. */
-const FIXED_MOD_ID = "generated";
+export const FIXED_MOD_ID = "generated";
 
-const MAX_CONTENT_ID_LEN = 32;
+const MAX_ID_LEN = 32;
+const VALID_ID = /^[a-z][a-z0-9_]*$/;
 
 /**
- * Map user prompt → canonical ModSpecV1.
- * modId is always "generated". Registry IDs come from parsed spec semantics (short ids), not raw prompt slug.
+ * Planner is DUMB: it does NOT infer content from prompt.
+ * It only sanitizes a Spec: fixed modId, normalize/shorten ids from Spec fields only.
+ * Caller (interpreter) provides the Spec; planner never creates items/blocks/recipes.
  */
-export function planSpec(prompt: string): ModSpecV1 {
-  const trimmed = prompt.trim();
-  const modName = trimmed.length > 0 ? sanitizeModName(trimmed.slice(0, 64)) : "Generated Mod";
-  const spec = createHelloWorldSpec(FIXED_MOD_ID, modName);
+export function sanitizeSpec(spec: ModSpecV1): ModSpecV1 {
+  const modName = spec.modName?.trim()?.slice(0, 128) || "Generated Mod";
 
-  if (trimmed.length === 0) {
-    return spec;
-  }
+  const out: ModSpecV1 = {
+    ...spec,
+    modId: FIXED_MOD_ID,
+    modName,
+    items: spec.items?.map((i) => ({
+      ...i,
+      id: sanitizeId(i.id, "item"),
+      name: i.name?.trim()?.slice(0, 128) || sanitizeId(i.id, "item"),
+    })),
+    blocks: spec.blocks?.map((b) => ({
+      ...b,
+      id: sanitizeId(b.id, "block"),
+      name: b.name?.trim()?.slice(0, 128) || sanitizeId(b.id, "block"),
+    })),
+    recipes: spec.recipes?.map((r) => ({
+      ...r,
+      id: sanitizeId(r.id, "recipe"),
+      result: {
+        id: sanitizeId(r.result.id, "result"),
+        count: r.result.count ?? 1,
+      },
+      ingredients: r.ingredients?.map((ing) => ({
+        id: sanitizeId(ing.id, "ingredient"),
+        count: ing.count ?? 1,
+      })),
+    })),
+  };
 
-  const lower = trimmed.toLowerCase();
-  const isBlock = isBlockPrompt(trimmed);
-
-  if (/\bcheese\b/.test(lower)) {
-    spec.items = [
-      { id: "cheese", name: "Cheese" },
-      { id: "melted_cheese", name: "Melted Cheese" },
-    ];
-    spec.blocks = [{ id: "cheese_block", name: "Block of Cheese" }];
-    spec.recipes = [
-      { id: "cheese_block_from_cheese", type: "crafting_shapeless", result: { id: "cheese_block", count: 1 } },
-      { id: "melted_cheese_from_block", type: "smelting", result: { id: "melted_cheese", count: 1 } },
-    ];
-    if (!spec.features.includes("ingot")) spec.features.push("ingot");
-    return spec;
-  }
-
-  const contentName = promptToContentName(trimmed);
-  const contentId = shortContentId(contentName, isBlock);
-
-  if (isBlock) {
-    spec.blocks = [{ id: contentId, name: contentName }];
-  } else {
-    spec.items = [{ id: contentId, name: contentName }];
-  }
-
-  return spec;
+  return out;
 }
 
-function sanitizeModName(s: string): string {
-  return s.replace(/[^\p{L}\p{N}\s\-_]/gu, "").trim() || "Generated Mod";
-}
-
-/** Derive a display name for the content from the prompt (first meaningful phrase). */
-function promptToContentName(prompt: string): string {
-  let s = prompt
-    .replace(/^(?:a|an|the)\s+/i, "")
+/**
+ * Sanitize a registry id: [a-z0-9_], starts with letter, max MAX_ID_LEN.
+ * If missing/blank, returns a fallback. Never derive from prompt text.
+ */
+function sanitizeId(id: string | undefined, kind: string): string {
+  if (id == null || typeof id !== "string" || !id.trim()) {
+    return kind === "block" ? "custom_block" : kind === "item" ? "custom_item" : "recipe";
+  }
+  const slug = id
     .trim()
-    .slice(0, 48);
-  s = s.replace(/[^\p{L}\p{N}\s\-_]/gu, " ").replace(/\s+/g, " ").trim();
-  if (!s) return "Custom";
-  return s
-    .split(/\s+/)
-    .map((word) => (word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : ""))
-    .filter(Boolean)
-    .join(" ");
-}
-
-/**
- * Short registry id from semantics, not full prompt slug.
- * Block: "X block" -> "x_block"; else "custom_block".
- * Item: first word (noun) -> "word"; else "custom_item". Max length MAX_CONTENT_ID_LEN.
- */
-function shortContentId(contentName: string, isBlock: boolean): string {
-  const slug = contentName
     .toLowerCase()
-    .replace(/[^a-z0-9\s_-]/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/-+/g, "_")
-    .slice(0, MAX_CONTENT_ID_LEN);
-  const base = slug || (isBlock ? "custom_block" : "custom_item");
-  const id = /^\d/.test(base) ? "m_" + base : base;
-  return id.slice(0, MAX_CONTENT_ID_LEN);
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, MAX_ID_LEN);
+  if (!slug) return kind === "block" ? "custom_block" : "custom_item";
+  const out = /^[a-z]/.test(slug) ? slug : "m_" + slug;
+  return out.slice(0, MAX_ID_LEN);
 }
 
-/** True when the prompt clearly describes a block (e.g. "block", "ore"). Exported for clarification gating (block-only = skip cosmetic ask). */
+/** True when the prompt clearly describes a block (e.g. "block", "ore"). Exported for clarification gating. */
 export function isBlockPrompt(prompt: string): boolean {
   return /\b(block|blocks|ore)\b/i.test(prompt);
 }

@@ -5,6 +5,7 @@ export type {
   ModBlock,
   ModOre,
   ModRecipe,
+  ModRecipeIngredient,
   ModLoot,
   AssetRef,
   ConstraintsReport,

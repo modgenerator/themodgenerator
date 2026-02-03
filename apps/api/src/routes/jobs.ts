@@ -14,8 +14,8 @@ import {
 } from "@themodgenerator/generator";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { validateSpec } from "@themodgenerator/validator";
-import { interpretWithClarification } from "@themodgenerator/generator";
-import { planSpec, isBlockPrompt } from "../services/planner.js";
+import { interpretToSpec } from "@themodgenerator/generator";
+import { sanitizeSpec, isBlockPrompt } from "../services/planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
 const DEFAULT_BUDGET: CreditBudget = 30;
@@ -64,35 +64,34 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     });
     const buildId = job.id;
     const blockOnly = isBlockPrompt(prompt);
-    const clarificationResponse = interpretWithClarification(prompt, { blockOnly });
-    if (clarificationResponse.type === "request_clarification") {
+    const interpretResult = interpretToSpec(prompt, { blockOnly });
+    if (interpretResult.type === "request_clarification") {
       await updateJob(pool, job.id, {
         clarification_status: "asked",
-        clarification_question: clarificationResponse.message,
+        clarification_question: interpretResult.message,
       });
       console.log(`[JOBS] jobId=${buildId} clarification_status=none->asked (conflict; blockOnly=${blockOnly})`);
       return reply.status(200).send({
         jobId: job.id,
         needsClarification: true,
-        message: clarificationResponse.message,
-        examples: clarificationResponse.examples,
+        message: interpretResult.message,
+        examples: interpretResult.examples,
       });
     }
-    const resolvedPrompt = clarificationResponse.prompt;
-    const spec = planSpec(resolvedPrompt);
+    const spec = sanitizeSpec(interpretResult.spec);
     try {
-      validateSpec(spec, { prompt: resolvedPrompt });
+      validateSpec(spec, { prompt });
     } catch {
       // non-blocking
     }
     await updateJob(pool, job.id, { spec_json: spec, clarification_status: "skipped" });
-    console.log(`[JOBS] jobId=${buildId} clarification_status=skipped resolvedPromptUsed=false`);
+    console.log(`[JOBS] jobId=${buildId} clarification_status=skipped spec from interpreter`);
     const expanded = expandSpecTier1(spec);
-    const scopeFromPrompt = expandPromptToScope(resolvedPrompt);
+    const scopeFromPrompt = expandPromptToScope(prompt);
     const scopeFromItems = expanded.items.flatMap((item, i) =>
       expandIntentToScope({
         name: item.name,
-        description: i === 0 && resolvedPrompt ? resolvedPrompt : undefined,
+        description: i === 0 ? prompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })
@@ -110,7 +109,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     const itemPlans = expanded.items.map((item, i) =>
       planFromIntent({
         name: item.name,
-        description: i === 0 && resolvedPrompt ? resolvedPrompt : undefined,
+        description: i === 0 ? prompt : undefined,
         category: "item",
         material: item.material ?? "generic",
       })

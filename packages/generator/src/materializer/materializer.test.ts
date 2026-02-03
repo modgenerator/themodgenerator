@@ -114,6 +114,7 @@ describe("materializeTier1 golden tests", () => {
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/models\/item\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/models\/block\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/blockstates\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/[a-z0-9_]+\/recipes\/[a-z0-9_]+\.json$/,
     ];
     for (const f of files) {
       const matched = allowedPathPatterns.some((p) => p.test(f.path));

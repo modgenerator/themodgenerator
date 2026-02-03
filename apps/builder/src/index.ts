@@ -17,7 +17,7 @@ console.log("CWD:", process.cwd());
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.
  */
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,8 +38,9 @@ import {
   type MaterializedFile,
   type CreditBudget,
 } from "@themodgenerator/generator";
-import { validateSpec, validateModSpecV2 } from "@themodgenerator/validator";
+import { validateSpec, validateModSpecV2, validateRecipes } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
+import { generateOpaquePng16x16 } from "./texture-png.js";
 import {
   expandSpecTier1,
   isModSpecV2,
@@ -104,37 +105,50 @@ async function logPhase(
   await updateJob(pool, buildId, { current_phase: phase, phase_updated_at: now });
 }
 
-/** Minimal valid 1x1 transparent PNG — canonical placeholder when no user texture. */
-const PLACEHOLDER_PNG_TRANSPARENT_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-
-/**
- * Select canonical placeholder PNG by material semantics (wood, stone, metal, gem, generic).
- * Vanilla-style, deterministic. Currently all materials use the same transparent 1x1 PNG;
- * material-specific colored placeholders can be added here later.
- */
-function getPlaceholderPngForMaterial(
-  _material: "wood" | "stone" | "metal" | "gem" | "generic"
-): Buffer {
-  return Buffer.from(PLACEHOLDER_PNG_TRANSPARENT_BASE64, "base64");
-}
+const MIN_TEXTURE_SIZE_BYTES = 1024;
 
 /**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
- * .png files with empty contents are written as a canonical placeholder PNG (by material when provided).
- * No Gradle; no validation. Used in build mode only.
+ * .png files with empty contents get a real 16x16 opaque PNG (material color + noise).
+ * Non-empty .png contents are treated as UTF-8 (e.g. base64) only when not used for placeholder path.
  */
 function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
   for (const file of files) {
-    const { path: relPath, contents, placeholderMaterial } = file;
+    const { path: relPath, contents, placeholderMaterial, colorHint } = file;
     const fullPath = join(workDir, relPath);
     mkdirSync(dirname(fullPath), { recursive: true });
     if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
-      const material = placeholderMaterial ?? "generic";
-      const placeholderPng = getPlaceholderPngForMaterial(material);
-      writeFileSync(fullPath, placeholderPng);
+      const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
+      const seed = relPath.replace(/\.png$/, "").replace(/\//g, "_");
+      const pngBuffer = generateOpaquePng16x16({
+        material,
+        colorHint,
+        seed,
+      });
+      writeFileSync(fullPath, pngBuffer);
+    } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
+      writeFileSync(fullPath, Buffer.from(contents, "base64"));
     } else {
       writeFileSync(fullPath, contents, "utf8");
+    }
+  }
+}
+
+/**
+ * Fail fast if any texture PNG is missing, 0 bytes, or too small (would render broken in-game).
+ */
+function validateTexturePngs(files: MaterializedFile[], workDir: string): void {
+  const pngPaths = files.filter((f) => f.path.endsWith(".png")).map((f) => join(workDir, f.path));
+  for (const fullPath of pngPaths) {
+    if (!existsSync(fullPath)) {
+      throw new Error(`Texture missing: ${fullPath}`);
+    }
+    const st = statSync(fullPath);
+    if (st.size === 0) {
+      throw new Error(`Texture is 0 bytes: ${fullPath}`);
+    }
+    if (st.size < MIN_TEXTURE_SIZE_BYTES) {
+      throw new Error(`Texture too small (${st.size} bytes), must be >= ${MIN_TEXTURE_SIZE_BYTES}: ${fullPath}`);
     }
   }
 }
@@ -302,6 +316,18 @@ async function main(): Promise<void> {
       } catch {
         // If Tier 1 or any gate throws, proceed with spec; do not reject
       }
+      const recipeCheck = validateRecipes(specToUse);
+      if (!recipeCheck.valid) {
+        const msg = recipeCheck.errors.join("; ");
+        console.error(`[BUILDER] buildId=${buildId} Recipe validation failed: ${msg}`);
+        await updateJob(pool, JOB_ID, {
+          status: "failed",
+          rejection_reason: `Recipe validation: ${msg}`,
+          current_phase: "failed",
+          phase_updated_at: new Date(),
+        });
+        process.exit(1);
+      }
     }
 
     console.log(`[BUILDER] buildId=${buildId} Tier 1 materialized project`);
@@ -384,6 +410,7 @@ async function main(): Promise<void> {
           ? materializeTier1WithPlans(expanded, assets, itemPlans)
           : materializeTier1(expanded, assets);
       writeMaterializedFiles(files, workDir);
+      validateTexturePngs(files, workDir);
       copyFabricWrapperTo(workDir);
       await logPhase(pool, buildId, "compiled");
       console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");
@@ -446,6 +473,7 @@ async function main(): Promise<void> {
     console.log(`[BUILDER] buildId=${buildId} jar=${jarFile}`);
     const jarPath = join(jarDir, jarFile);
     const modId = (specToUse as { modId?: string }).modId ?? "generated";
+    const specRecipes = (specToUse as { recipes?: unknown[] }).recipes ?? [];
     const recipesPrefix = `data/${modId}/recipes/`;
     let jarList = "";
     try {
@@ -455,7 +483,7 @@ async function main(): Promise<void> {
       jarList = "";
     }
     const hasRecipes = jarList.split(/\r?\n/).some((line) => line.startsWith(recipesPrefix));
-    if (!hasRecipes) {
+    if (specRecipes.length > 0 && !hasRecipes) {
       console.error(`[BUILDER] buildId=${buildId} JAR missing ${recipesPrefix}; failing job`);
       const logKey = `logs/${JOB_ID}/build.log`;
       logContent = `Build produced JAR but missing required data: ${recipesPrefix}`;
@@ -466,7 +494,7 @@ async function main(): Promise<void> {
         finished_at: new Date(),
         current_phase: "failed",
         phase_updated_at: new Date(),
-        rejection_reason: `JAR is missing data/${modId}/recipes/. Generated resources must include both assets and data.`,
+        rejection_reason: `JAR is missing data/${modId}/recipes/. Spec requires recipes but directory not found in JAR.`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
       process.exit(1);

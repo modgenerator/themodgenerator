@@ -79,13 +79,31 @@ export function interpretToSpec(
 
   const lower = normalized.toLowerCase();
   const wantsSmelt = /\bsmelt(s|ing|able)?\b|\bfurnace\b|\bmelt(ed)?\b/.test(lower);
+  const craftFromMatch = lower.match(/\bcraft(able)?\s+from\s+(\d+)\s+(?:(\w+)\s+)?(?:items?|ingredients?)?\b/);
+  const craftCount = craftFromMatch ? Math.min(9, Math.max(1, parseInt(craftFromMatch[2], 10))) : 0;
+  const colorHint = simpleColorFromPrompt(lower);
 
   if (isBlock) {
-    spec.blocks = [{ id: blockId, name: displayName || "Block" }];
+    const blockEntry = { id: blockId, name: displayName || "Block", ...(colorHint && { colorHint }) };
+    spec.blocks = [blockEntry];
+    if (craftCount > 0) {
+      spec.items = [{ id: baseId, name: displayName || "Item", ...(colorHint && { colorHint }) }];
+      spec.recipes = [
+        {
+          id: `${blockId}_from_${baseId}`,
+          type: "crafting_shapeless",
+          ingredients: [{ id: baseId, count: craftCount }],
+          result: { id: blockId, count: 1 },
+        },
+      ];
+    }
     if (wantsSmelt) {
       const meltedId = "melted_" + (baseId === "custom" ? "block" : baseId);
-      spec.items = [{ id: meltedId, name: "Melted " + (displayName || "Block") }];
+      if (!spec.items?.some((i) => i.id === meltedId)) {
+        spec.items = [...(spec.items ?? []), { id: meltedId, name: "Melted " + (displayName || "Block") }];
+      }
       spec.recipes = [
+        ...(spec.recipes ?? []),
         {
           id: `${meltedId}_from_block`,
           type: "smelting",
@@ -95,7 +113,7 @@ export function interpretToSpec(
       ];
     }
   } else {
-    spec.items = [{ id: baseId, name: displayName || "Item" }];
+    spec.items = [{ id: baseId, name: displayName || "Item", ...(colorHint && { colorHint }) }];
     if (wantsSmelt) {
       const meltedId = "melted_" + baseId;
       spec.items.push({ id: meltedId, name: "Melted " + (displayName || "Item") });
@@ -111,4 +129,17 @@ export function interpretToSpec(
   }
 
   return { type: "proceed", spec };
+}
+
+function simpleColorFromPrompt(lower: string): string | undefined {
+  if (/\byellow\b/.test(lower)) return "yellow";
+  if (/\bred\b/.test(lower)) return "red";
+  if (/\bblue\b/.test(lower)) return "blue";
+  if (/\bgreen\b/.test(lower)) return "green";
+  if (/\borange\b/.test(lower)) return "orange";
+  if (/\bpurple\b/.test(lower)) return "purple";
+  if (/\bwhite\b/.test(lower)) return "white";
+  if (/\bblack\b/.test(lower)) return "black";
+  if (/\bgray\b|\bgrey\b/.test(lower)) return "gray";
+  return undefined;
 }

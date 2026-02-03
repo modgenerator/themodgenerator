@@ -9,11 +9,14 @@ import type { MaterializedFile } from "./types.js";
 
 const DATA_RECIPES = "src/main/resources/data";
 
-/** Crafting shapeless from spec: ingredients[] and result (1.21 format). */
+/** Crafting shapeless from spec: ingredients[] MUST have at least one entry (1.21 format). */
 function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   const ingredients = (rec.ingredients ?? []).flatMap((ing) =>
     Array(ing.count ?? 1).fill(null).map(() => ({ item: `${modId}:${ing.id}` }))
   );
+  if (ingredients.length === 0) {
+    throw new Error(`Recipe ${rec.id}: crafting_shapeless must have at least one ingredient.`);
+  }
   return JSON.stringify(
     {
       type: "minecraft:crafting_shapeless",
@@ -28,14 +31,19 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Smelting from spec: first ingredient -> result (1.21 format). */
+/** Smelting from spec: first ingredient -> result. No self-loop (ingredient MUST differ from result). */
 function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
-  const ingredientId = ing?.id ?? rec.result.id;
+  if (!ing?.id) {
+    throw new Error(`Recipe ${rec.id}: smelting must have at least one ingredient.`);
+  }
+  if (ing.id === rec.result.id) {
+    throw new Error(`Recipe ${rec.id}: smelting ingredient must not equal result (no self-loop).`);
+  }
   return JSON.stringify(
     {
       type: "minecraft:smelting",
-      ingredient: { item: `${modId}:${ingredientId}` },
+      ingredient: { item: `${modId}:${ing.id}` },
       result: {
         id: `${modId}:${rec.result.id}`,
         count: rec.result.count ?? 1,
@@ -48,14 +56,19 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Blasting from spec (1.21 format). */
+/** Blasting from spec (1.21 format). No self-loop. */
 function blastingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
-  const ingredientId = ing?.id ?? rec.result.id;
+  if (!ing?.id) {
+    throw new Error(`Recipe ${rec.id}: blasting must have at least one ingredient.`);
+  }
+  if (ing.id === rec.result.id) {
+    throw new Error(`Recipe ${rec.id}: blasting ingredient must not equal result (no self-loop).`);
+  }
   return JSON.stringify(
     {
       type: "minecraft:blasting",
-      ingredient: { item: `${modId}:${ingredientId}` },
+      ingredient: { item: `${modId}:${ing.id}` },
       result: {
         id: `${modId}:${rec.result.id}`,
         count: rec.result.count ?? 1,

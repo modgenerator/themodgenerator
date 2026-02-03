@@ -40,12 +40,16 @@ export interface ModItem {
   name: string;
   translationKey?: string;
   texturePath?: string;
+  /** Optional color hint for generated texture (e.g. "yellow", "red"). */
+  colorHint?: string;
 }
 
 export interface ModBlock {
   id: string;
   name: string;
   texturePath?: string;
+  /** Optional color hint for generated texture (e.g. "yellow", "red"). */
+  colorHint?: string;
 }
 
 export interface ModOre {

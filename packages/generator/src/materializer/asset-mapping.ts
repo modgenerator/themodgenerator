@@ -175,10 +175,12 @@ export function assetKeysToFiles(
   for (const id of itemIds) {
     const material = getCanonicalMaterial(materialForId(expanded, id, "item"));
     const meta = semanticMetadataForTexture(expanded, id, "item");
+    const colorHint = expanded.spec.items?.find((i) => i.id === id)?.colorHint;
     files.push({
       path: `${baseAssets}/textures/item/${id}.png`,
       contents: "",
       placeholderMaterial: material,
+      ...(colorHint && { colorHint }),
       ...meta,
     });
     files.push({
@@ -189,10 +191,12 @@ export function assetKeysToFiles(
   for (const id of blockIds) {
     const material = getCanonicalMaterial(materialForId(expanded, id, "block"));
     const meta = semanticMetadataForTexture(expanded, id, "block");
+    const colorHint = expanded.spec.blocks?.find((b) => b.id === id)?.colorHint;
     files.push({
       path: `${baseAssets}/textures/block/${id}.png`,
       contents: "",
       placeholderMaterial: material,
+      ...(colorHint && { colorHint }),
       ...meta,
     });
     files.push({

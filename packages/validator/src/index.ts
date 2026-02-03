@@ -4,6 +4,7 @@ import { validateSurvivalIntegration } from "./survival-integration.js";
 import { validateFabricVersion } from "./fabric-version.js";
 import { validateTextureGate } from "./texture-gate.js";
 import { validateSpecConsistency } from "./spec-consistency.js";
+import { validateRecipes } from "./validate-recipes.js";
 import {
   validateTier1,
   TIER1_NO_FEATURES,
@@ -23,6 +24,13 @@ export interface ValidationReport {
 export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): ValidationReport {
   const gates = [
     { name: "tier1", fn: () => validateTier1(spec) },
+    {
+      name: "recipes",
+      fn: () => {
+        const r = validateRecipes(spec);
+        return { valid: r.valid, reason: r.errors.join("; ") };
+      },
+    },
     { name: "spec-consistency", fn: () => validateSpecConsistency(spec) },
     { name: "fabric-version", fn: () => validateFabricVersion(spec) },
     { name: "forbidden-mechanics", fn: () => validateForbiddenMechanics(spec, options?.prompt) },
@@ -53,3 +61,5 @@ export {
 };
 export type { ValidateModSpecV2Result } from "./validate-modspec-v2.js";
 export { validateModSpecV2 } from "./validate-modspec-v2.js";
+export type { ValidateRecipesResult } from "./validate-recipes.js";
+export { validateRecipes } from "./validate-recipes.js";

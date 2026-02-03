@@ -16,6 +16,8 @@ export interface MaterializedFile {
   contents: string;
   /** When present, texture file uses this canonical placeholder (wood/stone/metal/gem/generic). */
   placeholderMaterial?: CanonicalMaterial;
+  /** Optional color hint for placeholder texture (e.g. "yellow", "red"). From spec/interpretation. */
+  colorHint?: string;
   /** Expressive archetype for this asset (fallback only). Set only when user has not provided asset. */
   archetype?: ArchetypeId;
   /** Hint: emissive. From archetype definition. */

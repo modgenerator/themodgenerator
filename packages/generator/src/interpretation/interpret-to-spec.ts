@@ -200,6 +200,8 @@ export function interpretToSpec(
     const out = { ...entity, textureIntent: intent, textureProfile: profile };
     if (intent === "item") {
       (out as { itemRender?: ItemRenderIntent }).itemRender = inferItemRender(displayName);
+    } else if (intent === "processed") {
+      (out as { itemRender?: ItemRenderIntent }).itemRender = "flat";
     }
     return { entity: out };
   }

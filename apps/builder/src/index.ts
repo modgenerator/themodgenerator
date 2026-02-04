@@ -225,7 +225,7 @@ function validateGeneratedRecipeJsonFromFiles(
   workDir: string,
   spec: { modId?: string; items?: { id: string }[]; blocks?: { id: string }[] }
 ): void {
-  const recipePaths = files.filter((f) => f.path.includes("/data/") && f.path.includes("/recipes/") && f.path.endsWith(".json"));
+  const recipePaths = files.filter((f) => f.path.includes("/data/") && f.path.includes("/recipe/") && f.path.endsWith(".json"));
   const recipesByPath = new Map<string, unknown>();
   for (const f of recipePaths) {
     const fullPath = join(workDir, f.path);
@@ -631,7 +631,7 @@ async function main(): Promise<void> {
     const jarPath = join(jarDir, jarFile);
     const modId = (specToUse as { modId?: string }).modId ?? "generated";
     const specRecipes = (specToUse as { recipes?: unknown[] }).recipes ?? [];
-    const recipesPrefix = `data/${modId}/recipes/`;
+    const recipesPrefix = `data/${modId}/recipe/`;
     let jarList = "";
     try {
       jarList = execSync(`jar tf "${jarPath}"`, { encoding: "utf8", maxBuffer: 2 * 1024 * 1024 });
@@ -651,7 +651,7 @@ async function main(): Promise<void> {
         finished_at: new Date(),
         current_phase: "failed",
         phase_updated_at: new Date(),
-        rejection_reason: `JAR is missing data/${modId}/recipes/. Spec requires recipes but directory not found in JAR.`,
+        rejection_reason: `JAR is missing data/${modId}/recipe/. Spec requires recipes but directory not found in JAR.`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
       process.exit(1);

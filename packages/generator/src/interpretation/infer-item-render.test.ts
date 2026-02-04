@@ -23,7 +23,13 @@ describe("inferItemRender", () => {
     assert.strictEqual(inferItemRender("Ingot"), "rod");
     assert.strictEqual(inferItemRender("Metal Rod"), "rod");
   });
-  it("generic name => flat", () => {
-    assert.strictEqual(inferItemRender("Something"), "flat");
+  it("generic name => chunky (default 3D when uncertain)", () => {
+    assert.strictEqual(inferItemRender("Something"), "chunky");
+    assert.strictEqual(inferItemRender("Custom Item"), "chunky");
+  });
+  it("explicit flat/icon/sprite => flat", () => {
+    assert.strictEqual(inferItemRender("Flat Icon"), "flat");
+    assert.strictEqual(inferItemRender("2D Sprite"), "flat");
+    assert.strictEqual(inferItemRender("Icon"), "flat");
   });
 });

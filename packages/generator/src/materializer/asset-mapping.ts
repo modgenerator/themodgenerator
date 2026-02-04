@@ -241,7 +241,7 @@ export function assetKeysToFiles(
     const material = getCanonicalMaterial(materialForId(expanded, id, "item"));
     const meta = semanticMetadataForTexture(expanded, id, "item");
     const itemSpec = expanded.spec.items?.find((i) => i.id === id);
-    const itemRender = expanded.items.find((i) => i.id === id)?.itemRender ?? itemSpec?.itemRender ?? "flat";
+    const itemRender = expanded.items.find((i) => i.id === id)?.itemRender ?? itemSpec?.itemRender ?? "chunky";
     const colorHint = itemSpec?.colorHint;
     const textureIntent = itemSpec?.textureIntent ?? "item";
     const textureProfile = itemSpec?.textureProfile;

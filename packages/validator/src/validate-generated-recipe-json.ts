@@ -1,8 +1,8 @@
 /**
  * Post-materialize validation: parsed recipe JSON files must match Minecraft 1.21.1 schema.
  * Fail fast if Minecraft would ignore a recipe.
- * - crafting_shapeless / crafting_shaped: result MUST be { item: "modid:id", count: N }
- * - cooking (smelting, blasting, smoking, campfire_cooking): result MUST be string "modid:id"
+ * - crafting_shapeless / crafting_shaped: result MUST be { id: "modid:id", count: N }
+ * - cooking (smelting, blasting, smoking, campfire_cooking): result MUST be { id: "modid:id", count: N }
  * - ingredients non-empty where required; referenced ids in spec; no self-loop.
  */
 
@@ -47,12 +47,13 @@ function validateOneRecipe(
       return errors;
     }
     const robj = result as Record<string, unknown>;
-    if (typeof robj.item !== "string" || !robj.item) {
-      errors.push(`Recipe ${recipeId}: crafting result must have "item" string (got result.id or missing).`);
+    const resultItemStr = (robj.id ?? robj.item) as string | undefined;
+    if (typeof resultItemStr !== "string" || !resultItemStr) {
+      errors.push(`Recipe ${recipeId}: crafting result must have "id" string (MC 1.21.1).`);
     } else {
-      const resultId = parseIdFromItemString(robj.item);
+      const resultId = parseIdFromItemString(resultItemStr);
       if (resultId && !ids.has(resultId)) {
-        errors.push(`Recipe ${recipeId}: result item "${robj.item}" is not in spec.`);
+        errors.push(`Recipe ${recipeId}: result "${resultItemStr}" is not in spec.`);
       }
     }
     if (robj.count != null && typeof robj.count !== "number") {
@@ -80,7 +81,7 @@ function validateOneRecipe(
       if (id && !ids.has(id)) {
         errors.push(`Recipe ${recipeId}: ingredient "${item}" is not in spec.`);
       }
-      if (id && robj.item && parseIdFromItemString(robj.item as string) === id) {
+      if (id && resultItemStr && parseIdFromItemString(resultItemStr) === id) {
         errors.push(`Recipe ${recipeId}: self-loop (ingredient equals result).`);
       }
     }
@@ -97,12 +98,18 @@ function validateOneRecipe(
     type === "minecraft:campfire_cooking"
   ) {
     const result = data.result;
-    if (typeof result !== "string" || !result) {
-      errors.push(`Recipe ${recipeId}: cooking result must be a string "modid:id" (not an object).`);
+    if (result == null || typeof result !== "object" || Array.isArray(result)) {
+      errors.push(`Recipe ${recipeId}: cooking result must be object { id, count } (MC 1.21.1).`);
     } else {
-      const id = parseIdFromItemString(result);
-      if (id && !ids.has(id)) {
-        errors.push(`Recipe ${recipeId}: result "${result}" is not in spec.`);
+      const robj = result as Record<string, unknown>;
+      const resultIdStr = robj.id as string | undefined;
+      if (typeof resultIdStr !== "string" || !resultIdStr) {
+        errors.push(`Recipe ${recipeId}: cooking result must have "id" string.`);
+      } else {
+        const id = parseIdFromItemString(resultIdStr);
+        if (id && !ids.has(id)) {
+          errors.push(`Recipe ${recipeId}: result "${resultIdStr}" is not in spec.`);
+        }
       }
     }
     const ingredientRaw = data.ingredient as Record<string, unknown> | undefined;
@@ -118,7 +125,9 @@ function validateOneRecipe(
       if (id && !ids.has(id)) {
         errors.push(`Recipe ${recipeId}: ingredient "${item}" is not in spec.`);
       }
-      if (typeof data.result === "string" && id && parseIdFromItemString(data.result) === id) {
+      const resultObj = data.result as Record<string, unknown> | undefined;
+      const resultIdStr = resultObj?.id;
+      if (typeof resultIdStr === "string" && id && parseIdFromItemString(resultIdStr) === id) {
         errors.push(`Recipe ${recipeId}: self-loop (ingredient equals result).`);
       }
     }

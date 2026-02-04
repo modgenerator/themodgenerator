@@ -1,9 +1,9 @@
 /**
- * Generate data/<modId>/recipes/*.json from spec only.
+ * Generate data/<modId>/recipe/*.json from spec only (1.21+ singular folder).
  * No keyword or id-based branches; all recipes come from expanded.spec.recipes[].
  * Minecraft 1.21.1: crafting_shapeless, crafting_shaped, smelting, blasting, smoking, campfire_cooking.
- * Crafting: result MUST be { item: "<modid>:<id>", count: N }. Never result.id.
- * Cooking: result MUST be string "<modid>:<id>"; count top-level; ingredient { item: "<modid>:<id>" }.
+ * Crafting result: { "id": "<modid>:<id>", "count": N }.
+ * Cooking result: { "id": "<modid>:<id>", "count": N } (item stack JSON).
  */
 
 import type { ExpandedSpecTier1, ModRecipe } from "@themodgenerator/spec";
@@ -11,7 +11,7 @@ import type { MaterializedFile } from "./types.js";
 
 const DATA_RECIPES = "src/main/resources/data";
 
-/** Crafting shapeless from spec: ingredients[] MUST have at least one entry (1.21 format). */
+/** Crafting shapeless from spec: ingredients[] MUST have at least one entry. MC 1.21.1 result uses "id". */
 function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   const ingredients = (rec.ingredients ?? []).flatMap((ing) =>
     Array(ing.count ?? 1).fill(null).map(() => ({ item: `${modId}:${ing.id}` }))
@@ -24,7 +24,7 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
       type: "minecraft:crafting_shapeless",
       ingredients,
       result: {
-        item: `${modId}:${rec.result.id}`,
+        id: `${modId}:${rec.result.id}`,
         count: rec.result.count ?? 1,
       },
     },
@@ -33,7 +33,7 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Crafting shaped from spec: pattern + key; result { item, count }. MC 1.21.1. */
+/** Crafting shaped from spec: pattern + key; result { id, count }. MC 1.21.1. */
 function craftingShapedFromSpec(modId: string, rec: ModRecipe): string {
   const pattern = rec.pattern ?? [];
   const key = rec.key ?? {};
@@ -50,7 +50,7 @@ function craftingShapedFromSpec(modId: string, rec: ModRecipe): string {
       pattern,
       key: keyOut,
       result: {
-        item: `${modId}:${rec.result.id}`,
+        id: `${modId}:${rec.result.id}`,
         count: rec.result.count ?? 1,
       },
     },
@@ -59,7 +59,7 @@ function craftingShapedFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Smelting from spec: first ingredient -> result. MC 1.21.1: result is STRING, count is top-level. */
+/** Smelting from spec. MC 1.21.1: result is item stack { id, count }. */
 function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) {
@@ -72,8 +72,7 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
     {
       type: "minecraft:smelting",
       ingredient: { item: `${modId}:${ing.id}` },
-      result: `${modId}:${rec.result.id}`,
-      count: rec.result.count ?? 1,
+      result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 },
       experience: 0.35,
       cookingtime: 200,
     },
@@ -82,51 +81,51 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Blasting from spec. MC 1.21.1: result STRING, count top-level. No self-loop. */
+/** Blasting from spec. MC 1.21.1: result { id, count }. No self-loop. */
 function blastingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: blasting must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: blasting self-loop.`);
   return JSON.stringify(
-    { type: "minecraft:blasting", ingredient: { item: `${modId}:${ing.id}` }, result: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1, experience: 0.35, cookingtime: 100 },
+    { type: "minecraft:blasting", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 100 },
     null,
     2
   );
 }
 
-/** Smoking from spec. MC 1.21.1: result STRING, count top-level. */
+/** Smoking from spec. MC 1.21.1: result { id, count }. */
 function smokingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: smoking must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: smoking self-loop.`);
   return JSON.stringify(
-    { type: "minecraft:smoking", ingredient: { item: `${modId}:${ing.id}` }, result: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1, experience: 0.35, cookingtime: 100 },
+    { type: "minecraft:smoking", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 100 },
     null,
     2
   );
 }
 
-/** Campfire cooking from spec. MC 1.21.1: result STRING, count top-level. */
+/** Campfire cooking from spec. MC 1.21.1: result { id, count }. */
 function campfireCookingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: campfire_cooking must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: campfire_cooking self-loop.`);
   return JSON.stringify(
-    { type: "minecraft:campfire_cooking", ingredient: { item: `${modId}:${ing.id}` }, result: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1, experience: 0.35, cookingtime: 600 },
+    { type: "minecraft:campfire_cooking", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 600 },
     null,
     2
   );
 }
 
 /**
- * Emit recipe JSON files under data/<modId>/recipes/ from spec.recipes only.
- * Path: src/main/resources/data/<modId>/recipes/<id>.json. modId must match registration.
+ * Emit recipe JSON files under data/<modId>/recipe/ (1.21+ singular) from spec.recipes only.
+ * Path: src/main/resources/data/<modId>/recipe/<id>.json. modId must match registration.
  * Supported: crafting_shapeless, crafting_shaped, smelting, blasting, smoking, campfire_cooking.
  */
 export function recipeDataFiles(expanded: ExpandedSpecTier1): MaterializedFile[] {
   const modId = expanded.spec.modId;
   const files: MaterializedFile[] = [];
-  const base = `${DATA_RECIPES}/${modId}/recipes`;
+  const base = `${DATA_RECIPES}/${modId}/recipe`;
 
   for (const rec of expanded.spec.recipes ?? []) {
     const path = `${base}/${rec.id}.json`;

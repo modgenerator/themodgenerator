@@ -35,28 +35,25 @@ jobs:
           npm -v
 
       - name: Where am I
-        working-directory: ${{ github.workspace }}
-        run: pwd && ls
+        run: cd "${{ github.workspace }}" && pwd && ls
 
       - name: Validate schema.json
-        working-directory: ${{ github.workspace }}
-        run: node packages/spec/scripts/validate-schema.mjs
+        run: cd "${{ github.workspace }}" && node packages/spec/scripts/validate-schema.mjs
 
       - name: Install deps (monorepo root)
-        working-directory: ${{ github.workspace }}
-        run: npm ci
+        run: cd "${{ github.workspace }}" && npm ci
 
       - name: Build spec, validator, generator, builder
-        working-directory: ${{ github.workspace }}
         run: |
+          cd "${{ github.workspace }}"
           npm run build -w @themodgenerator/spec
           npm run build -w @themodgenerator/validator
           npm run build -w @themodgenerator/generator
           npm run build -w @themodgenerator/builder
 
       - name: Test generator and builder (block deploy if fail)
-        working-directory: ${{ github.workspace }}
         run: |
+          cd "${{ github.workspace }}"
           npm run test -w @themodgenerator/generator
           npm run test -w @themodgenerator/builder
 

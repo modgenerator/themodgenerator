@@ -95,4 +95,53 @@ describe("interpretToSpec", () => {
     assert.ok(itemNames.includes("Ruby") && itemNames.includes("Sapphire"), "items must be Ruby and Sapphire");
     assert.strictEqual(spec.blocks![0].name, "Marble Block", "block must be Marble Block");
   });
+
+  it("Add items: Raw Tin, Tin Ingot. Smelt Raw Tin into Tin Ingot → 2 items, 1 smelting recipe", () => {
+    const result = interpretToSpec("Add items: Raw Tin, Tin Ingot. Smelt Raw Tin into Tin Ingot.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.items?.length, 2, "must have 2 items");
+    assert.strictEqual((spec.recipes?.length ?? 0), 1, "must have 1 cooking recipe");
+    const smelting = spec.recipes!.find((r: { type: string }) => r.type === "smelting");
+    assert.ok(smelting, "must have smelting recipe");
+    assert.strictEqual(smelting!.ingredients?.[0]?.id, "raw_tin");
+    assert.strictEqual(smelting!.result.id, "tin_ingot");
+    const itemIds = spec.items!.map((i: { id: string }) => i.id);
+    assert.ok(itemIds.includes("raw_tin") && itemIds.includes("tin_ingot"));
+  });
+
+  it("Add items: Raw Tin, Tin Ingot. Blast Raw Tin into Tin Ingot → kind=blasting", () => {
+    const result = interpretToSpec("Add items: Raw Tin, Tin Ingot. Blast Raw Tin into Tin Ingot.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    const blasting = spec.recipes!.find((r: { type: string }) => r.type === "blasting");
+    assert.ok(blasting, "must have blasting recipe");
+    assert.strictEqual(blasting!.ingredients?.[0]?.id, "raw_tin");
+    assert.strictEqual(blasting!.result.id, "tin_ingot");
+  });
+
+  it("Add items: Ruby, Polished Ruby. Smelt Ruby into Polished Ruby. No recipes → 0 recipes", () => {
+    const result = interpretToSpec("Add items: Ruby, Polished Ruby. Smelt Ruby into Polished Ruby. No recipes.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.items?.length, 2);
+    assert.strictEqual(spec.recipes?.length ?? 0, 0, "No recipes constraint must prevent cooking recipes");
+  });
+
+  it("Smelt Raw Tin into Tin Ingot (no explicit items list) → both items created + 1 recipe", () => {
+    const result = interpretToSpec("Smelt Raw Tin into Tin Ingot.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    const itemIds = spec.items!.map((i: { id: string }) => i.id);
+    assert.ok(itemIds.includes("raw_tin"), "must create Raw Tin item");
+    assert.ok(itemIds.includes("tin_ingot"), "must create Tin Ingot item");
+    assert.strictEqual((spec.recipes?.length ?? 0), 1);
+    assert.strictEqual(spec.recipes![0].type, "smelting");
+    assert.strictEqual(spec.recipes![0].ingredients?.[0]?.id, "raw_tin");
+    assert.strictEqual(spec.recipes![0].result.id, "tin_ingot");
+  });
 });

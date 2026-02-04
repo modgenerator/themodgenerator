@@ -132,6 +132,9 @@ export interface ModOre {
   recipeId?: string;
 }
 
+/** Cooking recipe type for 1.21.1 (smelting, blasting, smoking, campfire_cooking). */
+export type CookingKind = "smelting" | "blasting" | "smoking" | "campfire_cooking";
+
 export interface ModRecipeIngredient {
   id: string;
   count?: number;
@@ -147,6 +150,10 @@ export interface ModRecipe {
   /** Required for crafting_shaped: map pattern char to spec id (e.g. { "#": { id: "ingot" } }). */
   key?: Record<string, { id: string }>;
   result: { id: string; count?: number };
+  /** Optional for cooking recipes (smelting/blasting/smoking/campfire_cooking). Defaults applied in generator. */
+  experience?: number;
+  /** Optional for cooking recipes. Defaults: smelting 200, blasting/smoking 100, campfire_cooking 600. */
+  cookingtime?: number;
 }
 
 export interface ModLoot {

@@ -13,6 +13,7 @@ export type {
   ModItem,
   ModBlock,
   ModOre,
+  CookingKind,
   ModRecipe,
   ModRecipeIngredient,
   ModLoot,

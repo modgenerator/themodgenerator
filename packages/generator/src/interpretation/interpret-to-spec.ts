@@ -8,6 +8,7 @@ import type { ModSpecV1, ItemRenderIntent } from "@themodgenerator/spec";
 import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
 import type { ClarificationResponse } from "./clarification.js";
 import { extractEntityList } from "./entity-list-extractor.js";
+import { extractCookingDirectives, parseCookingPhrases } from "./cooking-directive-extractor.js";
 import { inferItemRender } from "./infer-item-render.js";
 import { clarificationGate } from "./clarification.js";
 import { analyzePromptIntent } from "./prompt-understanding.js";
@@ -229,11 +230,40 @@ export function interpretToSpec(
     if (firstName && !containsPoison(firstName)) {
       (spec as { modName?: string }).modName = `${firstName.replace(/\s+Block$/i, "").trim()} Mod`;
     }
+    const cooking = extractCookingDirectives(originalOnly, spec, { noRecipes: entityExtraction.noRecipes });
+    for (const item of cooking.itemsToAdd) {
+      if (!spec.items?.some((i) => i.id === item.id)) {
+        const itemResult = attachTextureProfile(item.name, "item", { id: item.id, name: item.name, ...(colorHint && { colorHint }) });
+        if (itemResult.clarification) return itemResult.clarification;
+        spec.items = [...(spec.items ?? []), itemResult.entity];
+      }
+    }
+    if (cooking.recipes.length > 0) {
+      spec.recipes = [...(spec.recipes ?? []), ...cooking.recipes];
+    }
     return { type: "proceed", spec };
   }
 
   const noBlocks = entityExtraction.noBlocks;
   const noRecipes = entityExtraction.noRecipes;
+
+  if (entityExtraction.entities.length === 0 && parseCookingPhrases(originalOnly).length > 0) {
+    const cooking = extractCookingDirectives(originalOnly, spec, { noRecipes });
+    if (cooking.recipes.length > 0 || cooking.itemsToAdd.length > 0) {
+      for (const item of cooking.itemsToAdd) {
+        const itemResult = attachTextureProfile(item.name, "item", { id: item.id, name: item.name, ...(colorHint && { colorHint }) });
+        if (itemResult.clarification) return itemResult.clarification;
+        spec.items = [...(spec.items ?? []), itemResult.entity];
+      }
+      if (cooking.recipes.length > 0) spec.recipes = [...(spec.recipes ?? []), ...cooking.recipes];
+      const firstName = spec.items?.[0]?.name;
+      if (firstName && !containsPoison(firstName)) {
+        (spec as { modName?: string }).modName = `${firstName.replace(/\s+Block$/i, "").trim()} Mod`;
+      }
+      return { type: "proceed", spec };
+    }
+  }
+
   const effectiveBlock = isBlock && !noBlocks;
 
   if (effectiveBlock) {
@@ -316,6 +346,18 @@ export function interpretToSpec(
       spec.decisions = [...(spec.decisions ?? []), { kind: "smelting_input_default", chosen: "item" }];
       spec.smelting = [...(spec.smelting ?? []), { input: "item", sourceId: finalBaseId, resultId: finalMeltedId }];
     }
+  }
+
+  const cooking = extractCookingDirectives(originalOnly, spec, { noRecipes: entityExtraction.noRecipes });
+  for (const item of cooking.itemsToAdd) {
+    if (!spec.items?.some((i) => i.id === item.id)) {
+      const itemResult = attachTextureProfile(item.name, "item", { id: item.id, name: item.name, ...(colorHint && { colorHint }) });
+      if (itemResult.clarification) return itemResult.clarification;
+      spec.items = [...(spec.items ?? []), itemResult.entity];
+    }
+  }
+  if (cooking.recipes.length > 0) {
+    spec.recipes = [...(spec.recipes ?? []), ...cooking.recipes];
   }
 
   return { type: "proceed", spec };

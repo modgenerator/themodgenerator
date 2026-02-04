@@ -24,7 +24,7 @@ export function resolveIngredientId(modId: string, id: string): string {
 /** Crafting shapeless from spec: ingredients[] MUST have at least one entry. MC 1.21.1 result uses "id". */
 function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   const ingredients = (rec.ingredients ?? []).flatMap((ing) =>
-    Array(ing.count ?? 1).fill(null).map(() => ({ item: `${modId}:${ing.id}` }))
+    Array(ing.count ?? 1).fill(null).map(() => ({ item: resolveIngredientId(modId, ing.id) }))
   );
   if (ingredients.length === 0) {
     throw new Error(`Recipe ${rec.id}: crafting_shapeless must have at least one ingredient.`);
@@ -78,13 +78,15 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   if (ing.id === rec.result.id) {
     throw new Error(`Recipe ${rec.id}: smelting ingredient must not equal result (no self-loop).`);
   }
+  const experience = rec.experience ?? 0.35;
+  const cookingtime = rec.cookingtime ?? 200;
   return JSON.stringify(
     {
       type: "minecraft:smelting",
-      ingredient: { item: `${modId}:${ing.id}` },
+      ingredient: { item: resolveIngredientId(modId, ing.id) },
       result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 },
-      experience: 0.35,
-      cookingtime: 200,
+      experience,
+      cookingtime,
     },
     null,
     2
@@ -96,8 +98,10 @@ function blastingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: blasting must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: blasting self-loop.`);
+  const experience = rec.experience ?? 0.35;
+  const cookingtime = rec.cookingtime ?? 100;
   return JSON.stringify(
-    { type: "minecraft:blasting", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 100 },
+    { type: "minecraft:blasting", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );
@@ -108,8 +112,10 @@ function smokingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: smoking must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: smoking self-loop.`);
+  const experience = rec.experience ?? 0.35;
+  const cookingtime = rec.cookingtime ?? 100;
   return JSON.stringify(
-    { type: "minecraft:smoking", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 100 },
+    { type: "minecraft:smoking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );
@@ -120,8 +126,10 @@ function campfireCookingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) throw new Error(`Recipe ${rec.id}: campfire_cooking must have at least one ingredient.`);
   if (ing.id === rec.result.id) throw new Error(`Recipe ${rec.id}: campfire_cooking self-loop.`);
+  const experience = rec.experience ?? 0.35;
+  const cookingtime = rec.cookingtime ?? 600;
   return JSON.stringify(
-    { type: "minecraft:campfire_cooking", ingredient: { item: `${modId}:${ing.id}` }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience: 0.35, cookingtime: 600 },
+    { type: "minecraft:campfire_cooking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );

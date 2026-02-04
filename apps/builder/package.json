@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/ensure-vanilla-assets.js && tsc",
+    "ensure-vanilla-assets": "node scripts/ensure-vanilla-assets.js",
     "test": "npm run build && node --test dist/texture-png.test.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@types/yauzl": "^2.10.0",
+    "archiver": "^7.0.1",
     "tsx": "^4.19.2",
     "typescript": "~5.3.3"
   }

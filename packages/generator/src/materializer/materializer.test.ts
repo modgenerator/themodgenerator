@@ -267,6 +267,26 @@ describe("materializer invariants", () => {
     assert.ok(recipeFiles.every((f) => f.path.startsWith("src/main/resources/data/test_mod/recipe/")), "recipes must be under data/<modId>/recipe/");
   });
 
+  it("smelting recipe emits file under data/<modId>/recipe/ with result.id (1.21.1, no legacy result.item)", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "raw_tin", name: "Raw Tin" }, { id: "tin_ingot", name: "Tin Ingot" }],
+      recipes: [
+        { id: "tin_ingot_from_raw_tin_smelting", type: "smelting", ingredients: [{ id: "raw_tin", count: 1 }], result: { id: "tin_ingot", count: 1 } },
+      ],
+    });
+    const expanded = expandSpecTier1(spec);
+    const files = recipeDataFiles(expanded);
+    const smeltingFile = files.find((f) => f.path.includes("tin_ingot_from_raw_tin_smelting"));
+    assert.ok(smeltingFile, "smelting recipe file must exist under data/<modId>/recipe/");
+    assert.ok(smeltingFile.path.startsWith("src/main/resources/data/") && smeltingFile.path.includes("/recipe/"), "path must be data/<modId>/recipe/<id>.json");
+    const json = JSON.parse(smeltingFile.contents) as { type: string; ingredient: { item: string }; result: { id?: string; item?: string; count?: number }; experience?: number; cookingtime?: number };
+    assert.strictEqual(json.type, "minecraft:smelting");
+    assert.ok("result" in json && typeof json.result === "object");
+    assert.strictEqual(typeof json.result.id, "string", "MC 1.21.1 must use result.id string");
+    assert.ok(!("item" in json.result), "result must not use legacy result.item");
+    assert.strictEqual(json.result.count, 1);
+  });
+
   it("integration: smoking and campfire_cooking emit same schema as smelting (result { id, count }, ingredient.item)", () => {
     const spec = minimalTier1Spec({
       items: [{ id: "raw", name: "Raw" }, { id: "cooked", name: "Cooked" }, { id: "smoked", name: "Smoked" }, { id: "campfire", name: "Campfire" }],

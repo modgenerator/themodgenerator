@@ -15,8 +15,24 @@ This document describes how the generator produces **non-red, usable** assets wh
   - `packages/generator/src/materialization/vanilla-visual-defaults.ts` — `classifyEntityVisualKind()`, `resolveVanillaVisualDefaults()`, `VisualKind` enum, vanilla template map.
   - `packages/generator/src/materializer/asset-mapping.ts` — Uses the resolver for items and blocks; sets `copyFromVanillaPaths` and model parent on materialized files.
 - **Builder**
-  - `apps/builder/src/vanilla-asset-source.ts` — Resolves client jar path, reads from zip (yauzl) or from a bundled pack directory.
+  - `apps/builder/src/vanilla-asset-source.ts` — Resolves client jar path, reads from zip (yauzl) or from a bundled pack directory/zip; **default path** for bundled pack.
   - `apps/builder/src/index.ts` — `writeMaterializedFiles()` checks `VANILLA_ASSETS_SOURCE` when any file has `copyFromVanillaPaths`; copies vanilla texture buffers instead of generating PNGs.
+  - `apps/builder/scripts/ensure-vanilla-assets.js` — Build-time script: if the canonical zip is missing, downloads Minecraft 1.21.1 client jar and extracts `assets/minecraft/**` into the zip.
+
+## Canonical vanilla assets path (bundled pack)
+
+The **canonical location** for the repo-bundled vanilla assets (Minecraft 1.21.1) is:
+
+- **Path:** `apps/builder/assets/vanilla-assets-1.21.1.zip`
+
+This path is resolved at runtime relative to the builder’s dist (so from `apps/builder/dist/` it is `../assets/vanilla-assets-1.21.1.zip`). If `VANILLA_ASSETS_PACK` is **not** set, the builder uses this path as the default when `VANILLA_ASSETS_SOURCE=bundled_pack`.
+
+- **Creation:** The zip is created automatically when you run `npm run build` (or `npm run ensure-vanilla-assets`) in the builder: the script downloads the official Minecraft 1.21.1 client jar from Mojang and extracts only `assets/minecraft/**` into `vanilla-assets-1.21.1.zip`. No manual path guessing is required.
+- **Vercel:** Set `VANILLA_ASSETS_PACK` to the **absolute path** of this zip in your deployment environment. After your build runs, the zip lives at `<workspace>/apps/builder/assets/vanilla-assets-1.21.1.zip`. So set:
+  - **`VANILLA_ASSETS_PACK`** = `<absolute path to repo>/apps/builder/assets/vanilla-assets-1.21.1.zip`  
+  Example (Vercel): if the project root is `/vercel/path0`, use  
+  **`VANILLA_ASSETS_PACK=/vercel/path0/apps/builder/assets/vanilla-assets-1.21.1.zip`**  
+  Ensure your build includes `npm run ensure-vanilla-assets` (or `npm run build -w @themodgenerator/builder`) so the zip exists before the builder runs.
 
 ## Sourcing vanilla assets
 
@@ -27,7 +43,7 @@ The builder supports two ways to obtain vanilla textures. You **must** set one w
 Set to one of:
 
 - **`client_jar`** — Read textures from the Minecraft client jar.
-- **`bundled_pack`** — Read textures from an unpacked directory (e.g. a pinned vanilla assets pack).
+- **`bundled_pack`** — Read textures from a **zip file** or an **unpacked directory** (the canonical zip is at `apps/builder/assets/vanilla-assets-1.21.1.zip`; see above).
 
 Fail behaviour: if any materialized file has `copyFromVanillaPaths` and `VANILLA_ASSETS_SOURCE` is unset or not one of these two values, the builder exits with a clear error.
 
@@ -43,9 +59,10 @@ Fail behaviour: if any materialized file has `copyFromVanillaPaths` and `VANILLA
 
 ### Option 2: Bundled pack (`VANILLA_ASSETS_SOURCE=bundled_pack`)
 
-- **Where:** A directory that contains the vanilla asset tree (e.g. `assets/minecraft/textures/...`).
-- **Config:** Set **`VANILLA_ASSETS_PACK`** to the absolute or relative path of that directory. The builder then resolves paths like `<VANILLA_ASSETS_PACK>/assets/minecraft/textures/item/iron_ingot.png`.
-- **Failure:** If `VANILLA_ASSETS_SOURCE=bundled_pack` and `VANILLA_ASSETS_PACK` is unset or empty, the builder throws. If a required file is missing under that directory, it throws when copying that file.
+- **Where:** A **zip file** (e.g. `vanilla-assets-1.21.1.zip` containing `assets/minecraft/...`) or an **unpacked directory** with the same layout. The builder accepts either: if the path is a `.zip` file, it reads from the zip; otherwise it reads from the filesystem.
+- **Default:** If **`VANILLA_ASSETS_PACK`** is unset, the builder uses the canonical path: `apps/builder/assets/vanilla-assets-1.21.1.zip` (resolved relative to the running code).
+- **Config:** To override, set **`VANILLA_ASSETS_PACK`** to the absolute or relative path of the zip or directory. The builder then resolves texture paths like `assets/minecraft/textures/item/iron_ingot.png` inside the zip or `<path>/assets/minecraft/textures/item/iron_ingot.png` on disk.
+- **Failure:** If the path does not exist, the builder throws and suggests running `npm run ensure-vanilla-assets` in apps/builder. If a required file is missing, it throws when copying that file.
 
 ## VisualKind mapping (summary)
 
@@ -69,5 +86,6 @@ When the spec includes `woodTypes` (e.g. `{ id: "maple", displayName: "Maple" }`
 
 - **No texture generation in this step** — only copying vanilla assets.
 - **VANILLA_ASSETS_SOURCE** must be `client_jar` or `bundled_pack` when any output uses vanilla defaults; the builder fails loudly otherwise.
+- **Canonical path:** `apps/builder/assets/vanilla-assets-1.21.1.zip`; created by `npm run ensure-vanilla-assets` (or as part of builder build) if missing.
 - **Client jar:** requires a local Minecraft install and `MC_VERSION`; uses yauzl to read from the jar.
-- **Bundled pack:** requires `VANILLA_ASSETS_PACK` pointing at an unpacked vanilla asset tree.
+- **Bundled pack:** `VANILLA_ASSETS_PACK` defaults to the canonical zip path; can be overridden with a path to a zip or unpacked directory.

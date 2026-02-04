@@ -4,10 +4,24 @@
  * Fail loud with clear error if assets source is not found.
  */
 
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { platform } from "node:os";
 import { env } from "node:process";
+
+/** Canonical filename for the repo-bundled vanilla assets zip (MC 1.21.1). */
+export const VANILLA_ASSETS_ZIP_FILENAME = "vanilla-assets-1.21.1.zip";
+
+/**
+ * Default path for VANILLA_ASSETS_PACK when not set: builder package's assets dir + zip.
+ * Resolved relative to this file so it works from any cwd (dev, dist, Docker).
+ * See docs/VANILLA-DEFAULTS.md.
+ */
+export function getDefaultVanillaAssetsPackPath(): string {
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+  return join(thisDir, "..", "assets", VANILLA_ASSETS_ZIP_FILENAME);
+}
 
 export type VanillaAssetsSource = "client_jar" | "bundled_pack";
 
@@ -124,11 +138,20 @@ export async function getVanillaTextureBuffer(
   }
 
   if (source === "bundled_pack") {
-    const root = options.bundledPackRoot ?? env.VANILLA_ASSETS_PACK ?? "";
+    const root = options.bundledPackRoot ?? env.VANILLA_ASSETS_PACK ?? getDefaultVanillaAssetsPackPath();
     if (!root) {
       throw new Error(
-        `[VANILLA_ASSETS] VANILLA_ASSETS_SOURCE=bundled_pack requires VANILLA_ASSETS_PACK (path to unpacked assets) or options.bundledPackRoot.`
+        `[VANILLA_ASSETS] VANILLA_ASSETS_SOURCE=bundled_pack requires VANILLA_ASSETS_PACK (path to zip or unpacked assets) or options.bundledPackRoot.`
       );
+    }
+    if (!existsSync(root)) {
+      throw new Error(
+        `[VANILLA_ASSETS] Bundled pack path does not exist: ${root}. Run 'npm run ensure-vanilla-assets' in apps/builder to create the default zip, or set VANILLA_ASSETS_PACK to an existing path.`
+      );
+    }
+    const stat = statSync(root);
+    if (stat.isFile() && root.toLowerCase().endsWith(".zip")) {
+      return readEntryFromZip(root, entryPath);
     }
     const fullPath = join(root, "assets", "minecraft", "textures", vanillaPath + (vanillaPath.endsWith(".png") ? "" : ".png"));
     if (!existsSync(fullPath)) {

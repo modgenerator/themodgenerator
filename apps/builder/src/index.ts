@@ -42,7 +42,7 @@ import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, 
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
 import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
-import { getVanillaTextureBuffer, type VanillaAssetsSource } from "./vanilla-asset-source.js";
+import { getVanillaTextureBuffer, logVanillaAssetsPackAtStartup, type VanillaAssetsSource } from "./vanilla-asset-source.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
   expandSpecTier1,
@@ -96,6 +96,10 @@ console.log("[BUILDER] Environment check:", {
 });
 
 console.log("[BUILDER] All required environment variables present. Starting main()...");
+
+if (process.env.VANILLA_ASSETS_SOURCE === "bundled_pack") {
+  logVanillaAssetsPackAtStartup();
+}
 
 /** Log phase transition and persist to DB for observability (buildId = JOB_ID). */
 async function logPhase(

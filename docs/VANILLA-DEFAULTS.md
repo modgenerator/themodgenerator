@@ -19,20 +19,19 @@ This document describes how the generator produces **non-red, usable** assets wh
   - `apps/builder/src/index.ts` — `writeMaterializedFiles()` checks `VANILLA_ASSETS_SOURCE` when any file has `copyFromVanillaPaths`; copies vanilla texture buffers instead of generating PNGs.
   - `apps/builder/scripts/ensure-vanilla-assets.js` — Build-time script: if the canonical zip is missing, downloads Minecraft 1.21.1 client jar and extracts `assets/minecraft/**` into the zip.
 
-## Canonical vanilla assets path (bundled pack)
+## Bundled pack path resolution
 
-The **canonical location** for the repo-bundled vanilla assets (Minecraft 1.21.1) is:
+When `VANILLA_ASSETS_SOURCE=bundled_pack`, the builder resolves the pack path in this order:
 
-- **Path:** `apps/builder/assets/vanilla-assets-1.21.1.zip`
+1. **VANILLA_ASSETS_PACK** (if set) — use this path.
+2. **dist/assets/vanilla-assets-1.21.1.zip** — used in Docker/runtime; the zip is copied here during the image build so the deployed builder is self-sufficient. No env var needed.
+3. **../assets/vanilla-assets-1.21.1.zip** — local dev fallback (relative to `dist/`).
 
-This path is resolved at runtime relative to the builder’s dist (so from `apps/builder/dist/` it is `../assets/vanilla-assets-1.21.1.zip`). If `VANILLA_ASSETS_PACK` is **not** set, the builder uses this path as the default when `VANILLA_ASSETS_SOURCE=bundled_pack`.
+At startup the builder logs which path was chosen, whether it exists, and its size (so you can confirm the zip is real). You do **not** need to run ensure scripts in production; the Docker build runs `ensure-vanilla-assets` and copies the zip into `dist/assets/`.
 
-- **Creation:** The zip is created automatically when you run `npm run build` (or `npm run ensure-vanilla-assets`) in the builder: the script downloads the official Minecraft 1.21.1 client jar from Mojang and extracts only `assets/minecraft/**` into `vanilla-assets-1.21.1.zip`. No manual path guessing is required.
-- **Vercel:** Set `VANILLA_ASSETS_PACK` to the **absolute path** of this zip in your deployment environment. After your build runs, the zip lives at `<workspace>/apps/builder/assets/vanilla-assets-1.21.1.zip`. So set:
-  - **`VANILLA_ASSETS_PACK`** = `<absolute path to repo>/apps/builder/assets/vanilla-assets-1.21.1.zip`  
-  Example (Vercel): if the project root is `/vercel/path0`, use  
-  **`VANILLA_ASSETS_PACK=/vercel/path0/apps/builder/assets/vanilla-assets-1.21.1.zip`**  
-  Ensure your build includes `npm run ensure-vanilla-assets` (or `npm run build -w @themodgenerator/builder`) so the zip exists before the builder runs.
+- **Creation:** The zip is created when you run `npm run build` (or `npm run ensure-vanilla-assets`) in the builder: the script downloads the Minecraft 1.21.1 client jar from Mojang and extracts `assets/minecraft/**` into the zip.
+- **Docker:** The Dockerfile runs the builder build (which runs ensure-vanilla-assets), then copies the zip to `apps/builder/dist/assets/`. The runtime image only copies `dist/`, so the zip is present at `dist/assets/vanilla-assets-1.21.1.zip`. **Sufficient env:** `VANILLA_ASSETS_SOURCE=bundled_pack` and `MC_VERSION=1.21.1`; `VANILLA_ASSETS_PACK` is optional.
+- **Vercel / other deploy:** If your deploy does not use Docker and does not put the zip in `dist/assets/`, set **VANILLA_ASSETS_PACK** to the absolute path of the zip (e.g. `/vercel/path0/apps/builder/assets/vanilla-assets-1.21.1.zip`) and ensure your build runs `npm run ensure-vanilla-assets` (or builder build) so the zip exists.
 
 ## Sourcing vanilla assets
 
@@ -59,10 +58,10 @@ Fail behaviour: if any materialized file has `copyFromVanillaPaths` and `VANILLA
 
 ### Option 2: Bundled pack (`VANILLA_ASSETS_SOURCE=bundled_pack`)
 
-- **Where:** A **zip file** (e.g. `vanilla-assets-1.21.1.zip` containing `assets/minecraft/...`) or an **unpacked directory** with the same layout. The builder accepts either: if the path is a `.zip` file, it reads from the zip; otherwise it reads from the filesystem.
-- **Default:** If **`VANILLA_ASSETS_PACK`** is unset, the builder uses the canonical path: `apps/builder/assets/vanilla-assets-1.21.1.zip` (resolved relative to the running code).
-- **Config:** To override, set **`VANILLA_ASSETS_PACK`** to the absolute or relative path of the zip or directory. The builder then resolves texture paths like `assets/minecraft/textures/item/iron_ingot.png` inside the zip or `<path>/assets/minecraft/textures/item/iron_ingot.png` on disk.
-- **Failure:** If the path does not exist, the builder throws and suggests running `npm run ensure-vanilla-assets` in apps/builder. If a required file is missing, it throws when copying that file.
+- **Where:** A **zip file** or **unpacked directory** with `assets/minecraft/...`. Resolution order: (a) `VANILLA_ASSETS_PACK` if set, (b) `dist/assets/vanilla-assets-1.21.1.zip` (runtime/Docker), (c) `../assets/vanilla-assets-1.21.1.zip` (local dev).
+- **Startup log:** The builder logs the chosen path, whether it exists, and file size when using bundled_pack.
+- **Config:** Set **`VANILLA_ASSETS_PACK`** only to override the default (e.g. on Vercel if the zip is not in dist). In Docker, the zip is in `dist/assets/` so no override is needed.
+- **Failure:** If the resolved path does not exist, the builder throws. If a required file is missing inside the pack, it throws when copying that file.
 
 ## VisualKind mapping (summary)
 
@@ -86,6 +85,6 @@ When the spec includes `woodTypes` (e.g. `{ id: "maple", displayName: "Maple" }`
 
 - **No texture generation in this step** — only copying vanilla assets.
 - **VANILLA_ASSETS_SOURCE** must be `client_jar` or `bundled_pack` when any output uses vanilla defaults; the builder fails loudly otherwise.
-- **Canonical path:** `apps/builder/assets/vanilla-assets-1.21.1.zip`; created by `npm run ensure-vanilla-assets` (or as part of builder build) if missing.
+- **Bundled pack resolution:** (a) `VANILLA_ASSETS_PACK` if set, (b) `dist/assets/vanilla-assets-1.21.1.zip` (Docker/runtime; zip copied during image build), (c) `../assets/` (local dev). No manual ensure scripts needed in production.
 - **Client jar:** requires a local Minecraft install and `MC_VERSION`; uses yauzl to read from the jar.
-- **Bundled pack:** `VANILLA_ASSETS_PACK` defaults to the canonical zip path; can be overridden with a path to a zip or unpacked directory.
+- **Startup:** When using bundled_pack, the builder logs chosen path, existence, and file size.

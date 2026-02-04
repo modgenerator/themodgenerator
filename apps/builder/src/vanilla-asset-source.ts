@@ -13,14 +13,64 @@ import { env } from "node:process";
 /** Canonical filename for the repo-bundled vanilla assets zip (MC 1.21.1). */
 export const VANILLA_ASSETS_ZIP_FILENAME = "vanilla-assets-1.21.1.zip";
 
+const _thisDir = dirname(fileURLToPath(import.meta.url));
+
 /**
- * Default path for VANILLA_ASSETS_PACK when not set: builder package's assets dir + zip.
- * Resolved relative to this file so it works from any cwd (dev, dist, Docker).
+ * Path to zip inside dist (runtime container). When running from dist/vanilla-asset-source.js
+ * this is dist/assets/vanilla-assets-1.21.1.zip — the path copied in during Docker build.
+ */
+function getDistAssetsZipPath(): string {
+  return join(_thisDir, "assets", VANILLA_ASSETS_ZIP_FILENAME);
+}
+
+/**
+ * Fallback for local dev: builder package's assets dir + zip (../assets from dist).
  * See docs/VANILLA-DEFAULTS.md.
  */
 export function getDefaultVanillaAssetsPackPath(): string {
-  const thisDir = dirname(fileURLToPath(import.meta.url));
-  return join(thisDir, "..", "assets", VANILLA_ASSETS_ZIP_FILENAME);
+  return join(_thisDir, "..", "assets", VANILLA_ASSETS_ZIP_FILENAME);
+}
+
+/**
+ * Resolution order for bundled_pack root:
+ * a) options override / VANILLA_ASSETS_PACK (if set)
+ * b) dist/assets/vanilla-assets-1.21.1.zip (if exists)
+ * c) ../assets/vanilla-assets-1.21.1.zip (local dev fallback)
+ */
+export function getResolvedBundledPackPath(override?: string): string {
+  if (override?.trim()) return override;
+  if (env.VANILLA_ASSETS_PACK?.trim()) return env.VANILLA_ASSETS_PACK;
+  const distPath = getDistAssetsZipPath();
+  if (existsSync(distPath)) return distPath;
+  return getDefaultVanillaAssetsPackPath();
+}
+
+/** Call at startup when using bundled_pack: log chosen path, existence, and size. */
+export function logVanillaAssetsPackAtStartup(): void {
+  const override = env.VANILLA_ASSETS_PACK?.trim();
+  const distPath = getDistAssetsZipPath();
+  const fallbackPath = getDefaultVanillaAssetsPackPath();
+  const path = override ?? (existsSync(distPath) ? distPath : fallbackPath);
+  const source = override ? "VANILLA_ASSETS_PACK (env)" : existsSync(distPath) ? "dist/assets (runtime zip)" : "../assets (local dev fallback)";
+  const exists = existsSync(path);
+  let sizeStr = "N/A";
+  if (exists) {
+    try {
+      const stat = statSync(path);
+      sizeStr = `${stat.size} bytes`;
+    } catch {
+      sizeStr = "(stat failed)";
+    }
+  }
+  console.log("[VANILLA_ASSETS] Bundled pack resolution:", {
+    source,
+    path,
+    exists,
+    size: sizeStr,
+  });
+  if (!exists) {
+    console.error("[VANILLA_ASSETS] Bundled pack path does not exist. Set VANILLA_ASSETS_PACK or ensure the zip is at dist/assets or ../assets.");
+  }
 }
 
 export type VanillaAssetsSource = "client_jar" | "bundled_pack";
@@ -138,7 +188,7 @@ export async function getVanillaTextureBuffer(
   }
 
   if (source === "bundled_pack") {
-    const root = options.bundledPackRoot ?? env.VANILLA_ASSETS_PACK ?? getDefaultVanillaAssetsPackPath();
+    const root = getResolvedBundledPackPath(options.bundledPackRoot);
     if (!root) {
       throw new Error(
         `[VANILLA_ASSETS] VANILLA_ASSETS_SOURCE=bundled_pack requires VANILLA_ASSETS_PACK (path to zip or unpacked assets) or options.bundledPackRoot.`
@@ -146,7 +196,7 @@ export async function getVanillaTextureBuffer(
     }
     if (!existsSync(root)) {
       throw new Error(
-        `[VANILLA_ASSETS] Bundled pack path does not exist: ${root}. Run 'npm run ensure-vanilla-assets' in apps/builder to create the default zip, or set VANILLA_ASSETS_PACK to an existing path.`
+        `[VANILLA_ASSETS] Bundled pack path does not exist: ${root}. Set VANILLA_ASSETS_PACK to a valid path, or ensure the zip is at dist/assets/vanilla-assets-1.21.1.zip (deploy) or ../assets (local).`
       );
     }
     const stat = statSync(root);

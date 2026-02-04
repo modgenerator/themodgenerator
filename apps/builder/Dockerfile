@@ -24,6 +24,9 @@ RUN npm install && \
     npm run build -w @themodgenerator/spec && \
     npm run build -w @themodgenerator/db -w @themodgenerator/validator -w @themodgenerator/gcp -w @themodgenerator/generator && \
     npm run build -w @themodgenerator/builder
+# Ensure vanilla assets zip is inside dist so runtime COPY gets it (builder build already ran ensure-vanilla-assets)
+RUN mkdir -p /app/apps/builder/dist/assets && \
+    cp /app/apps/builder/assets/vanilla-assets-1.21.1.zip /app/apps/builder/dist/assets/
 
 FROM deps
 WORKDIR /app

@@ -56,6 +56,48 @@ function itemModelJson(modId: string, id: string): string {
 `;
 }
 
+/** Item model with 3D elements (rod: thin bar; chunky: small cube; plate: flat box). MC 1.21.1. */
+function itemModelJsonWithElements(modId: string, id: string, shape: "rod" | "chunky" | "plate"): string {
+  const tex = `"${modId}:item/${id}"`;
+  let from: [number, number, number];
+  let to: [number, number, number];
+  if (shape === "rod") {
+    from = [7, 0, 7];
+    to = [9, 16, 9];
+  } else if (shape === "chunky") {
+    from = [4, 4, 4];
+    to = [12, 12, 12];
+  } else {
+    from = [2, 0, 2];
+    to = [14, 2, 14];
+  }
+  const [x0, y0, z0] = from;
+  const [x1, y1, z1] = to;
+  const faces = [
+    `"down": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+    `"up": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+    `"north": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+    `"south": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+    `"west": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+    `"east": { "uv": [0, 0, 16, 16], "texture": "#layer0" }`,
+  ].join(", ");
+  const element = `{ "from": [${x0}, ${y0}, ${z0}], "to": [${x1}, ${y1}, ${z1}], "faces": { ${faces} } }`;
+  return `{
+  "textures": {
+    "layer0": ${tex}
+  },
+  "elements": [${element}],
+  "display": {
+    "thirdperson_righthand": { "rotation": [75, 45, 0], "translation": [0, 2.5, 0], "scale": [0.375, 0.375, 0.375] },
+    "firstperson_righthand": { "rotation": [0, 45, 0], "scale": [0.4, 0.4, 0.4] },
+    "ground": { "translation": [0, 3, 0], "scale": [0.25, 0.25, 0.25] },
+    "gui": { "rotation": [30, 225, 0], "translation": [0, 0, 0], "scale": [0.625, 0.625, 0.625] },
+    "fixed": { "scale": [0.5, 0.5, 0.5] }
+  }
+}
+`;
+}
+
 /** Block-as-item model: reference block model so held/inventory uses block appearance. No separate item texture. */
 function blockAsItemModelJson(modId: string, blockId: string): string {
   return `{
@@ -199,19 +241,33 @@ export function assetKeysToFiles(
     const material = getCanonicalMaterial(materialForId(expanded, id, "item"));
     const meta = semanticMetadataForTexture(expanded, id, "item");
     const itemSpec = expanded.spec.items?.find((i) => i.id === id);
+    const itemRender = expanded.items.find((i) => i.id === id)?.itemRender ?? itemSpec?.itemRender ?? "flat";
     const colorHint = itemSpec?.colorHint;
     const textureIntent = itemSpec?.textureIntent ?? "item";
+    const textureProfile = itemSpec?.textureProfile;
+    const texturePrompt = textureProfile ? buildTexturePrompt(textureProfile) : undefined;
     files.push({
       path: `${baseAssets}/textures/item/${id}.png`,
       contents: "",
       placeholderMaterial: material,
       ...(colorHint && { colorHint }),
       textureIntent,
+      ...(textureProfile && { textureProfile }),
+      ...(texturePrompt && { texturePrompt }),
       ...meta,
     });
+    const isBlockId = expanded.spec.blocks?.some((b) => b.id === id);
+    let modelContents: string;
+    if (itemRender === "blocklike" && isBlockId) {
+      modelContents = blockAsItemModelJson(modId, id);
+    } else if (itemRender === "rod" || itemRender === "chunky" || itemRender === "plate") {
+      modelContents = itemModelJsonWithElements(modId, id, itemRender);
+    } else {
+      modelContents = itemModelJson(modId, id);
+    }
     files.push({
       path: `${baseAssets}/models/item/${id}.json`,
-      contents: itemModelJson(modId, id),
+      contents: modelContents,
     });
   }
   for (const id of blockIds) {

@@ -40,7 +40,7 @@ import {
 } from "@themodgenerator/generator";
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
-import { generateOpaquePng16x16 } from "./texture-png.js";
+import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
 import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
@@ -123,12 +123,15 @@ function textureSeedFromFile(relPath: string, file: MaterializedFile): string {
   return [base, intent].join("_");
 }
 
+/** Per-path texture metadata from profile-driven generator (for manifest). */
+const textureMetaByPath = new Map<string, { motifsApplied: string[]; materialClassApplied: string }>();
+
 /**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
- * .png files with empty contents get a real 32x32 opaque PNG (material color + noise).
- * Non-empty .png contents are treated as base64 when applicable.
+ * .png files with empty contents get a real 32x32 opaque PNG (material color + noise + motifs when profile present).
  */
 function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
+  textureMetaByPath.clear();
   for (const file of files) {
     const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt } = file;
     const fullPath = join(workDir, relPath);
@@ -136,15 +139,18 @@ function writeMaterializedFiles(files: MaterializedFile[], workDir: string): voi
     if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
       const seed = textureSeedFromFile(relPath, file);
+      const profile = (file as { textureProfile?: { materialClass?: string; visualMotifs?: string[] } }).textureProfile;
       if (process.env.DEBUG && texturePrompt) {
         console.log(`[BUILDER] texture prompt ${relPath}: ${texturePrompt}`);
       }
-      const pngBuffer = generateOpaquePng16x16({
+      const { buffer: pngBuffer, motifsApplied, materialClassApplied } = generateOpaquePng16x16WithProfile({
         material,
         colorHint,
         seed,
+        textureProfile: profile ?? undefined,
       });
       writeFileSync(fullPath, pngBuffer);
+      if (profile) textureMetaByPath.set(relPath, { motifsApplied, materialClassApplied });
     } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
       writeFileSync(fullPath, Buffer.from(contents, "base64"));
     } else {
@@ -159,23 +165,26 @@ export interface TextureManifestEntry {
   intent: "block" | "item" | "processed";
   materialHint: string;
   derivedFrom: string | null;
+  materialClassApplied?: string;
+  motifsApplied?: string[];
 }
 
 /**
- * Build texture manifest from materialized PNG files that have textureProfile.
- * Written to workDir for auditing and regression detection.
+ * Build texture manifest from materialized PNG files that have textureProfile; use motifsApplied/materialClassApplied from writeMaterializedFiles.
  */
 function buildAndWriteTextureManifest(files: MaterializedFile[], workDir: string): TextureManifestEntry[] {
   const manifest: TextureManifestEntry[] = [];
   for (const f of files) {
     if (!f.path.endsWith(".png") || !(f as { textureProfile?: { intent: string; materialHint: string } }).textureProfile) continue;
-    const profile = (f as { textureProfile: { intent: string; materialHint: string } }).textureProfile;
+    const profile = (f as { textureProfile: { intent: string; materialHint: string; materialClass?: string; visualMotifs?: string[] } }).textureProfile;
     const id = f.path.replace(/.*\/(?:item|block)\//, "").replace(/\.png$/, "");
+    const meta = textureMetaByPath.get(f.path);
     manifest.push({
       id,
       intent: profile.intent as "block" | "item" | "processed",
       materialHint: profile.materialHint,
       derivedFrom: null,
+      ...(meta && { materialClassApplied: meta.materialClassApplied, motifsApplied: meta.motifsApplied }),
     });
   }
   const manifestPath = join(workDir, "texture-manifest.json");

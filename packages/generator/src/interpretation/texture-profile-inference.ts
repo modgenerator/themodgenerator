@@ -5,9 +5,36 @@
  * If confidence < threshold, caller must FAIL with explanation.
  */
 
-import type { TextureProfile } from "@themodgenerator/spec";
+import type { TextureProfile, TextureMaterialClass } from "@themodgenerator/spec";
 
 const CONFIDENCE_THRESHOLD = 0.5;
+
+const MOTIF_OPTIONS = ["holes", "grain", "strata", "veins", "bubbles", "flakes", "rings"] as const;
+
+function inferMaterialClass(materialHint: string): TextureMaterialClass {
+  const lower = materialHint.toLowerCase();
+  if (/\bwood\b/.test(lower)) return "wood";
+  if (/\bstone\b|\bbrick\b/.test(lower)) return "stone";
+  if (/\bmetal\b|\bingot\b/.test(lower)) return "metal";
+  if (/\bfood\b|\borganic\b|\bplant\b/.test(lower)) return "food";
+  if (/\bcloud\b/.test(lower)) return "cloud";
+  if (/\bgem\b|\bcrystal\b/.test(lower)) return "crystal";
+  return "generic";
+}
+
+function inferVisualMotifs(materialHint: string, physicalTraits: string[]): string[] {
+  const motifs: string[] = [];
+  const lower = materialHint.toLowerCase();
+  const traitSet = new Set(physicalTraits.map((t) => t.toLowerCase()));
+  if (traitSet.has("porous") || /\bporous\b/.test(lower)) motifs.push("holes");
+  if (traitSet.has("grainy") || /\bwood\b|\bgrain\b/.test(lower)) motifs.push("grain");
+  if (traitSet.has("strata") || /\bstone\b|\bstrata\b/.test(lower)) motifs.push("strata");
+  if (traitSet.has("veins") || /\bvein\b/.test(lower)) motifs.push("veins");
+  if (traitSet.has("bubbles") || /\bbubble\b/.test(lower)) motifs.push("bubbles");
+  if (traitSet.has("flakes")) motifs.push("flakes");
+  if (traitSet.has("rings") || /\bring\b/.test(lower)) motifs.push("rings");
+  return [...new Set(motifs)].filter((m) => MOTIF_OPTIONS.includes(m)).slice(0, 2);
+}
 
 /** Infer physical traits and surface style from material hint (generic keyword inference). */
 function inferTraitsFromMaterialHint(materialHint: string): {
@@ -99,12 +126,16 @@ export function inferTextureProfile(
 ): InferTextureProfileResult {
   const materialHint = materialHintFromDisplayNameOrFamily(displayName, options?.familyType);
   const { physicalTraits, surfaceStyle, confidence } = inferTraitsFromMaterialHint(materialHint);
+  const materialClass = inferMaterialClass(materialHint);
+  const visualMotifs = inferVisualMotifs(materialHint, physicalTraits);
 
   const profile: TextureProfile = {
     intent,
     materialHint,
+    materialClass,
     physicalTraits,
     surfaceStyle,
+    ...(visualMotifs.length > 0 && { visualMotifs }),
   };
 
   const finalConfidence = materialHint === "custom" ? Math.min(confidence, 0.4) : confidence;

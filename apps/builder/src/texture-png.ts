@@ -70,15 +70,50 @@ export function generateOpaquePng16x16(options: {
   /** Optional seed for deterministic noise (e.g. modId + contentId). */
   seed?: string;
 }): Buffer {
-  const { material = "generic", colorHint, seed = "default" } = options;
+  const result = generateOpaquePng16x16WithProfile({
+    ...options,
+    textureProfile: undefined,
+  });
+  return result.buffer;
+}
+
+export interface TextureProfileForGenerator {
+  intent?: string;
+  materialHint?: string;
+  materialClass?: string;
+  physicalTraits?: string[];
+  surfaceStyle?: string[];
+  visualMotifs?: string[];
+}
+
+export interface GenerateTextureResult {
+  buffer: Buffer;
+  motifsApplied: string[];
+  materialClassApplied: string;
+}
+
+/**
+ * Profile-driven texture: base + noise + motif stamps (e.g. holes). Records what was applied for manifest.
+ */
+export function generateOpaquePng16x16WithProfile(options: {
+  material?: string;
+  colorHint?: string;
+  seed?: string;
+  textureProfile?: TextureProfileForGenerator | null;
+}): GenerateTextureResult {
+  const { material = "generic", colorHint, seed = "default", textureProfile } = options;
   let [r, g, b] = colorHint ? colorHintToRgb(colorHint) : materialToRgb(material);
+  const materialClassApplied = textureProfile?.materialClass ?? "generic";
+  const motifsRequested = textureProfile?.visualMotifs ?? [];
+  const motifsApplied: string[] = [];
 
   const W = 32;
   const H = 32;
+  const rowSize = 1 + W * 4;
   const rawRows: number[] = [];
 
   for (let y = 0; y < H; y++) {
-    rawRows.push(0); // filter type 0 (None)
+    rawRows.push(0);
     for (let x = 0; x < W; x++) {
       const n = (hashToFloat(`${seed}-${x}-${y}`) - 0.5) * 24;
       rawRows.push(
@@ -90,24 +125,53 @@ export function generateOpaquePng16x16(options: {
     }
   }
 
+  if (motifsRequested.includes("holes") && seed) {
+    const numHoles = 2 + (Math.floor(hashToFloat(seed + "-holes") * 2) % 2);
+    for (let i = 0; i < numHoles; i++) {
+      const cx = Math.floor(hashToFloat(seed + `-hole-${i}-x`) * (W - 6)) + 3;
+      const cy = Math.floor(hashToFloat(seed + `-hole-${i}-y`) * (H - 6)) + 3;
+      const radius = 2 + (i % 2);
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy <= radius * radius) {
+            const x = cx + dx;
+            const y = cy + dy;
+            if (x >= 0 && x < W && y >= 0 && y < H) {
+              const idx = 1 + y * rowSize + x * 4;
+              const dark = 0.4;
+              rawRows[idx] = Math.floor(rawRows[idx]! * dark);
+              rawRows[idx + 1] = Math.floor(rawRows[idx + 1]! * dark);
+              rawRows[idx + 2] = Math.floor(rawRows[idx + 2]! * dark);
+            }
+          }
+        }
+      }
+    }
+    motifsApplied.push("holes");
+  }
+
   const rawData = Buffer.from(rawRows);
   const compressed = deflateSync(rawData, { level: 6 });
 
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(W, 0);
   ihdr.writeUInt32BE(H, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // color type RGBA
-  ihdr[10] = 0; // compression
-  ihdr[11] = 0; // filter
-  ihdr[12] = 0; // interlace
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
 
   const out: Buffer[] = [PNG_SIGNATURE];
   writeChunk(out, "IHDR", ihdr);
   writeChunk(out, "IDAT", compressed);
   writeChunk(out, "IEND", Buffer.alloc(0));
 
-  return Buffer.concat(out);
+  return {
+    buffer: Buffer.concat(out),
+    motifsApplied,
+    materialClassApplied,
+  };
 }
 
 function colorHintToRgb(hint: string): [number, number, number] {

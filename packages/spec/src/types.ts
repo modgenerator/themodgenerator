@@ -70,14 +70,21 @@ export type FeatureKey =
 /** Semantic intent for texture: block = world, item = inventory, processed = smelted/cooked result. */
 export type TextureIntent = "block" | "item" | "processed";
 
+/** Material class for profile-driven rendering (no material-specific branches; used as key). */
+export type TextureMaterialClass = "wood" | "stone" | "metal" | "food" | "cloud" | "crystal" | "generic";
+
 /** Semantic texture profile for image generation. materialHint from displayName/familyType; traits inferred. */
 export interface TextureProfile {
   intent: "block" | "item" | "processed";
   materialHint: string;
+  materialClass?: TextureMaterialClass;
   physicalTraits: string[];
   surfaceStyle: string[];
   visualMotifs?: string[];
 }
+
+/** Item render intent: flat sprite vs 3D-like model. */
+export type ItemRenderIntent = "flat" | "blocklike" | "chunky" | "rod" | "plate";
 
 export interface ModItem {
   id: string;
@@ -90,6 +97,8 @@ export interface ModItem {
   textureIntent?: TextureIntent;
   /** Semantic profile for texture generation (intent, material, traits). Required for pipeline. */
   textureProfile?: TextureProfile;
+  /** How to render in-world/inventory: flat (default), blocklike, chunky, rod, plate. */
+  itemRender?: ItemRenderIntent;
 }
 
 export interface ModBlock {
@@ -119,8 +128,12 @@ export interface ModRecipeIngredient {
 export interface ModRecipe {
   id: string;
   type: string;
-  /** Required for crafting_*; each entry references a spec item/block id. */
+  /** Required for crafting_shapeless; each entry references a spec item/block id. */
   ingredients?: ModRecipeIngredient[];
+  /** Required for crafting_shaped: row strings (e.g. ["###", "# #", "###"]). */
+  pattern?: string[];
+  /** Required for crafting_shaped: map pattern char to spec id (e.g. { "#": { id: "ingot" } }). */
+  key?: Record<string, { id: string }>;
   result: { id: string; count?: number };
 }
 

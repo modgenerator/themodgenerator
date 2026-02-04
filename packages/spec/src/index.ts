@@ -6,6 +6,8 @@ export type {
   BlockFamily,
   TextureIntent,
   TextureProfile,
+  TextureMaterialClass,
+  ItemRenderIntent,
   FeatureKey,
   ModItem,
   ModBlock,

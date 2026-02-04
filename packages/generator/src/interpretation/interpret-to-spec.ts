@@ -196,7 +196,11 @@ export function interpretToSpec(
         },
       };
     }
-    return { entity: { ...entity, textureIntent: intent, textureProfile: profile } };
+    const out = { ...entity, textureIntent: intent, textureProfile: profile };
+    if (intent === "item") {
+      (out as { itemRender?: ItemRenderIntent }).itemRender = inferItemRender(displayName);
+    }
+    return { entity: out };
   }
 
   if (isBlock) {

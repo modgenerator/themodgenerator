@@ -29,7 +29,6 @@ function parseIdFromItemString(itemStr: string): string | null {
  * Validate one parsed recipe JSON object. type is e.g. "minecraft:crafting_shapeless".
  */
 function validateOneRecipe(
-  modId: string,
   recipeId: string,
   data: Record<string, unknown>,
   ids: Set<string>
@@ -51,30 +50,42 @@ function validateOneRecipe(
     if (typeof robj.item !== "string" || !robj.item) {
       errors.push(`Recipe ${recipeId}: crafting result must have "item" string (got result.id or missing).`);
     } else {
-      const id = parseIdFromItemString(robj.item);
-      if (id && !ids.has(id)) {
+      const resultId = parseIdFromItemString(robj.item);
+      if (resultId && !ids.has(resultId)) {
         errors.push(`Recipe ${recipeId}: result item "${robj.item}" is not in spec.`);
       }
     }
     if (robj.count != null && typeof robj.count !== "number") {
       errors.push(`Recipe ${recipeId}: result count must be a number.`);
     }
-    const ingredients = data.ingredients ?? data.ingredient;
-    const arr = Array.isArray(ingredients) ? ingredients : ingredients != null ? [ingredients] : [];
-    if (arr.length === 0) {
+    let ingredientItems: string[] = [];
+    if (type === "minecraft:crafting_shaped" && data.key && typeof data.key === "object" && !Array.isArray(data.key)) {
+      const key = data.key as Record<string, { item?: string }>;
+      for (const v of Object.values(key)) {
+        if (v?.item && typeof v.item === "string") ingredientItems.push(v.item);
+      }
+    } else {
+      const ingredients = data.ingredients ?? data.ingredient;
+      const arr = Array.isArray(ingredients) ? ingredients : ingredients != null ? [ingredients] : [];
+      for (const ing of arr) {
+        const item = (ing as Record<string, unknown>)?.item;
+        if (typeof item === "string") ingredientItems.push(item);
+      }
+    }
+    if (ingredientItems.length === 0) {
       errors.push(`Recipe ${recipeId}: crafting must have at least one ingredient.`);
     }
-    for (const ing of arr) {
-      const item = (ing as Record<string, unknown>)?.item;
-      if (typeof item === "string") {
-        const id = parseIdFromItemString(item);
-        if (id && !ids.has(id)) {
-          errors.push(`Recipe ${recipeId}: ingredient "${item}" is not in spec.`);
-        }
-        if (id && robj.item && parseIdFromItemString(robj.item as string) === id) {
-          errors.push(`Recipe ${recipeId}: self-loop (ingredient equals result).`);
-        }
+    for (const item of ingredientItems) {
+      const id = parseIdFromItemString(item);
+      if (id && !ids.has(id)) {
+        errors.push(`Recipe ${recipeId}: ingredient "${item}" is not in spec.`);
       }
+      if (id && robj.item && parseIdFromItemString(robj.item as string) === id) {
+        errors.push(`Recipe ${recipeId}: self-loop (ingredient equals result).`);
+      }
+    }
+    if (type === "minecraft:crafting_shaped" && (!Array.isArray(data.pattern) || data.pattern.length === 0)) {
+      errors.push(`Recipe ${recipeId}: crafting_shaped must have non-empty pattern.`);
     }
     return errors;
   }
@@ -94,8 +105,12 @@ function validateOneRecipe(
         errors.push(`Recipe ${recipeId}: result "${result}" is not in spec.`);
       }
     }
-    const ing = (data.ingredient as Record<string, unknown>) ?? data.ingredients?.[0];
-    const item = (ing as Record<string, unknown>)?.item;
+    const ingredientRaw = data.ingredient as Record<string, unknown> | undefined;
+    const ingredientsArr = data.ingredients;
+    const firstIngredient =
+      Array.isArray(ingredientsArr) && ingredientsArr.length > 0 ? (ingredientsArr[0] as Record<string, unknown>) : undefined;
+    const ing = ingredientRaw ?? firstIngredient;
+    const item = ing?.item;
     if (typeof item !== "string" || !item) {
       errors.push(`Recipe ${recipeId}: cooking must have one ingredient with "item" string.`);
     } else {
@@ -122,7 +137,6 @@ export function validateGeneratedRecipeJson(
   recipesByPath: Map<string, unknown>
 ): ValidateGeneratedRecipeJsonResult {
   const errors: string[] = [];
-  const modId = spec.modId ?? "generated";
   const ids = specIds(spec);
 
   for (const [path, raw] of recipesByPath) {
@@ -132,7 +146,7 @@ export function validateGeneratedRecipeJson(
     }
     const data = raw as Record<string, unknown>;
     const recipeId = path.replace(/^.*\//, "").replace(/\.json$/, "");
-    const one = validateOneRecipe(modId, recipeId, data, ids);
+    const one = validateOneRecipe(recipeId, data, ids);
     errors.push(...one.map((e) => `${path}: ${e}`));
   }
 

@@ -12,12 +12,14 @@ export interface BaseSpec {
   tier: Tier;
 }
 
-/** Item spec — Tier 1: handheld item, flat texture, registry, creative tab. */
+/** Item spec — Tier 1: handheld item, flat or 3D model, registry, creative tab. */
 export interface ItemSpec extends BaseSpec {
   /** Semantic material for asset generation (e.g. "ruby", "ingot"). */
   material?: string;
   /** Rarity hint for visual descriptor. */
   rarity?: "common" | "uncommon" | "rare" | "epic";
+  /** Render intent: flat sprite vs blocklike/chunky/rod/plate (3D elements). */
+  itemRender?: "flat" | "blocklike" | "chunky" | "rod" | "plate";
 }
 
 /** Block spec — Tier 1: simple block, cube model, item form, flat texture. */
@@ -28,7 +30,7 @@ export interface BlockSpec extends BaseSpec {
 
 /** Convert ModItem to ItemSpec (logic layer). */
 export function itemSpecFromModItem(
-  item: { id: string; name: string; translationKey?: string },
+  item: { id: string; name: string; translationKey?: string; itemRender?: "flat" | "blocklike" | "chunky" | "rod" | "plate" },
   tier: Tier = 1
 ): ItemSpec {
   return {
@@ -36,6 +38,7 @@ export function itemSpecFromModItem(
     name: item.name,
     tier,
     material: "generic",
+    ...(item.itemRender != null && { itemRender: item.itemRender }),
   };
 }
 

@@ -228,4 +228,56 @@ describe("materializer invariants", () => {
     assert.strictEqual((json.result as { count?: number }).count, 1, "result.count must be number");
     assert.ok(!("id" in json.result) || json.result.id === undefined, "crafting result must not use result.id");
   });
+
+  it("integration: shaped + shapeless + smelting all emit valid MC 1.21.1 JSON", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "ingot", name: "Ingot" }, { id: "nugget", name: "Nugget" }, { id: "block", name: "Block" }, { id: "melted", name: "Melted" }],
+      blocks: [{ id: "block", name: "Block" }],
+      recipes: [
+        { id: "block_from_ingots", type: "crafting_shaped", pattern: ["###", "###", "###"], key: { "#": { id: "ingot" } }, result: { id: "block", count: 1 } },
+        { id: "ingots_from_block", type: "crafting_shapeless", ingredients: [{ id: "block", count: 1 }], result: { id: "ingot", count: 9 } },
+        { id: "melted_from_ingot", type: "smelting", ingredients: [{ id: "ingot", count: 1 }], result: { id: "melted", count: 1 } },
+      ],
+    });
+    const expanded = expandSpecTier1(spec);
+    const recipeFiles = recipeDataFiles(expanded);
+    assert.strictEqual(recipeFiles.length, 3, "must emit 3 recipe files");
+
+    const shaped = recipeFiles.find((f) => f.path.includes("block_from_ingots"));
+    assert.ok(shaped, "shaped recipe file must exist");
+    const shapedJson = JSON.parse(shaped!.contents) as { type: string; pattern?: string[]; key?: unknown; result?: { item: string; count: number } };
+    assert.strictEqual(shapedJson.type, "minecraft:crafting_shaped");
+    assert.ok(Array.isArray(shapedJson.pattern) && shapedJson.pattern.length === 3);
+    assert.ok(shapedJson.result && typeof shapedJson.result.item === "string" && shapedJson.result.item.includes(":block"));
+    assert.strictEqual(shapedJson.result.count, 1);
+
+    const shapeless = recipeFiles.find((f) => f.path.includes("ingots_from_block"));
+    assert.ok(shapeless);
+    const shapelessJson = JSON.parse(shapeless!.contents) as { type: string; result?: { item: string; count: number } };
+    assert.strictEqual(shapelessJson.type, "minecraft:crafting_shapeless");
+    assert.ok(shapelessJson.result?.item && shapelessJson.result.count === 9);
+
+    const smelting = recipeFiles.find((f) => f.path.includes("melted_from_ingot"));
+    assert.ok(smelting);
+    const smeltingJson = JSON.parse(smelting!.contents) as { type: string; result: string; count: number };
+    assert.strictEqual(smeltingJson.type, "minecraft:smelting");
+    assert.strictEqual(typeof smeltingJson.result, "string");
+    assert.strictEqual(smeltingJson.count, 1);
+
+    assert.ok(recipeFiles.every((f) => f.path.startsWith("src/main/resources/data/test_mod/recipes/")), "recipes must be under data/<modId>/recipes/");
+  });
+
+  it("item with itemRender rod produces item model JSON containing elements", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "metal_rod", name: "Metal Rod", itemRender: "rod" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const itemModel = files.find((f) => f.path.includes("models/item/metal_rod.json"));
+    assert.ok(itemModel, "item model for metal_rod must exist");
+    assert.ok(itemModel.contents.includes('"elements"'), "rod item model must contain elements");
+    const parsed = JSON.parse(itemModel.contents) as { elements?: unknown[] };
+    assert.ok(Array.isArray(parsed.elements) && parsed.elements.length > 0, "elements must be non-empty array");
+  });
 });

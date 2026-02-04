@@ -41,7 +41,7 @@ import {
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
-import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
+import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba } from "./texture-validation.js";
 import { getVanillaTextureBuffer, logVanillaAssetsPackAtStartup, type VanillaAssetsSource } from "./vanilla-asset-source.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
@@ -165,10 +165,11 @@ async function writeMaterializedFiles(
 
     if (relPath.endsWith(".png") && copyFromVanillaPaths?.length) {
       const vanillaPath = copyFromVanillaPaths[0];
-      const buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, {
+      let buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, {
         mcVersion: options?.mcVersion ?? process.env.MC_VERSION ?? "1.21.1",
         bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
       });
+      buffer = ensurePngRgba(buffer);
       writeFileSync(fullPath, buffer);
     } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
@@ -183,10 +184,12 @@ async function writeMaterializedFiles(
         seed,
         textureProfile: profile ?? undefined,
       });
-      writeFileSync(fullPath, pngBuffer);
+      const rgbaBuffer = ensurePngRgba(pngBuffer);
+      writeFileSync(fullPath, rgbaBuffer);
       if (profile) textureMetaByPath.set(relPath, { motifsApplied, materialClassApplied });
     } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
-      writeFileSync(fullPath, Buffer.from(contents, "base64"));
+      const rgbaBuffer = ensurePngRgba(Buffer.from(contents, "base64"));
+      writeFileSync(fullPath, rgbaBuffer);
     } else {
       writeFileSync(fullPath, contents, "utf8");
     }

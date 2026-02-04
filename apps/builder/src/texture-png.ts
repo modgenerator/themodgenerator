@@ -33,6 +33,27 @@ function writeChunk(out: Buffer[], type: string, data: Buffer): void {
   out.push(len, typeBuf, data, crcBuf);
 }
 
+/**
+ * Encode raw RGBA rows (each row: 1 filter byte + width*4 bytes) to a PNG buffer with color type 6.
+ * Used when converting indexed/palette PNGs to RGBA for Minecraft compatibility.
+ */
+export function encodeRawRgbaToPng(width: number, height: number, rawRowsWithFilter: Buffer): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+  const compressed = deflateSync(rawRowsWithFilter, { level: 6 });
+  const out: Buffer[] = [PNG_SIGNATURE];
+  writeChunk(out, "IHDR", ihdr);
+  writeChunk(out, "IDAT", compressed);
+  writeChunk(out, "IEND", Buffer.alloc(0));
+  return Buffer.concat(out);
+}
+
 /** Material → [R, G, B] 0–255. Opaque, visible in-game. */
 function materialToRgb(material: string): [number, number, number] {
   switch (material) {

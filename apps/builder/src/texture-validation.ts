@@ -1,10 +1,12 @@
 /**
  * Validate PNG texture files: decode, check dimensions, opacity, and variation.
  * Replaces file-size-based checks so valid compressed PNGs (e.g. 32x32 under 1KB) pass.
+ * ensurePngRgba: convert indexed/palette (color type 3) to RGBA so Minecraft accepts the texture.
  */
 
 import { inflateSync } from "node:zlib";
 import { readFileSync } from "node:fs";
+import { encodeRawRgbaToPng } from "./texture-png.js";
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -58,6 +60,131 @@ function decodePngRaw(buffer: Buffer): { width: number; height: number; colorTyp
     return null;
   }
   return { width, height, colorType, raw };
+}
+
+/**
+ * Full decode for conversion: read IHDR, PLTE, tRNS, IDAT. Used when colorType is 3 (indexed).
+ */
+function decodePngWithPalette(
+  buffer: Buffer
+): { width: number; height: number; colorType: number; raw: Buffer; plte?: Buffer; trns?: Buffer } | null {
+  if (buffer.length < 8 || buffer.subarray(0, 8).compare(PNG_SIGNATURE) !== 0) return null;
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  let plte: Buffer | undefined;
+  let trns: Buffer | undefined;
+  const idatChunks: Buffer[] = [];
+
+  while (offset + 12 <= buffer.length) {
+    const chunkLen = buffer.readUInt32BE(offset);
+    const chunkType = buffer.subarray(offset + 4, offset + 8).toString("ascii");
+    const chunkData = buffer.subarray(offset + 8, offset + 8 + chunkLen);
+    offset += 8 + chunkLen + 4;
+    if (chunkType === "IHDR") {
+      if (chunkLen < 13) return null;
+      width = chunkData.readUInt32BE(0);
+      height = chunkData.readUInt32BE(4);
+      colorType = chunkData[9];
+    } else if (chunkType === "PLTE") {
+      plte = chunkData;
+    } else if (chunkType === "tRNS") {
+      trns = chunkData;
+    } else if (chunkType === "IDAT") {
+      idatChunks.push(chunkData);
+    } else if (chunkType === "IEND") {
+      break;
+    }
+  }
+  if (width === 0 || height === 0 || idatChunks.length === 0) return null;
+  let raw: Buffer;
+  try {
+    raw = inflateSync(Buffer.concat(idatChunks));
+  } catch {
+    return null;
+  }
+  return { width, height, colorType, raw, plte, trns };
+}
+
+/**
+ * Convert indexed (color type 3) PNG to RGBA. No-op if already color type 2 or 6.
+ * Minecraft rejects palette/indexed (type 3); this ensures all saved PNGs are RGB or RGBA.
+ */
+export function ensurePngRgba(buffer: Buffer): Buffer {
+  const decoded = decodePngWithPalette(buffer);
+  if (!decoded) return buffer;
+  const { width, height, colorType, raw, plte, trns } = decoded;
+  if (colorType === 2 || colorType === 6) return buffer;
+
+  if (colorType === 3 && plte) {
+    const rowLen = 1 + width;
+    const outRows = Buffer.alloc(height * (1 + width * 4));
+    for (let y = 0; y < height; y++) {
+      const srcRow = y * rowLen;
+      const dstRow = y * (1 + width * 4);
+      outRows[dstRow] = 0;
+      for (let x = 0; x < width; x++) {
+        const idx = raw[srcRow + 1 + x];
+        const o = dstRow + 1 + x * 4;
+        outRows[o] = plte[idx * 3] ?? 0;
+        outRows[o + 1] = plte[idx * 3 + 1] ?? 0;
+        outRows[o + 2] = plte[idx * 3 + 2] ?? 0;
+        outRows[o + 3] = trns && idx < trns.length ? trns[idx] : 255;
+      }
+    }
+    return encodeRawRgbaToPng(width, height, outRows);
+  }
+
+  if (colorType === 0) {
+    const rowLen = 1 + width;
+    const outRows = Buffer.alloc(height * (1 + width * 4));
+    for (let y = 0; y < height; y++) {
+      const srcRow = y * rowLen;
+      const dstRow = y * (1 + width * 4);
+      outRows[dstRow] = 0;
+      for (let x = 0; x < width; x++) {
+        const g = raw[srcRow + 1 + x];
+        const o = dstRow + 1 + x * 4;
+        outRows[o] = g;
+        outRows[o + 1] = g;
+        outRows[o + 2] = g;
+        outRows[o + 3] = 255;
+      }
+    }
+    return encodeRawRgbaToPng(width, height, outRows);
+  }
+
+  if (colorType === 4) {
+    const rowLen = 1 + width * 2;
+    const outRows = Buffer.alloc(height * (1 + width * 4));
+    for (let y = 0; y < height; y++) {
+      const srcRow = y * rowLen;
+      const dstRow = y * (1 + width * 4);
+      outRows[dstRow] = 0;
+      for (let x = 0; x < width; x++) {
+        const i = srcRow + 1 + x * 2;
+        const g = raw[i];
+        const a = raw[i + 1];
+        const o = dstRow + 1 + x * 4;
+        outRows[o] = g;
+        outRows[o + 1] = g;
+        outRows[o + 2] = g;
+        outRows[o + 3] = a;
+      }
+    }
+    return encodeRawRgbaToPng(width, height, outRows);
+  }
+
+  return buffer;
+}
+
+/**
+ * Read PNG IHDR and return colorType. Fails if not a valid PNG.
+ */
+export function getPngColorType(buffer: Buffer): number | null {
+  const decoded = decodePngRaw(buffer);
+  return decoded ? decoded.colorType : null;
 }
 
 /**

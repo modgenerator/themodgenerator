@@ -354,4 +354,31 @@ describe("materializer invariants", () => {
     assert.strictEqual(parsed.parent, "minecraft:item/generated");
     assert.ok(!parsed.elements || parsed.elements.length === 0, "flat item must not have elements");
   });
+
+  it("wood type Maple: all maple_* ids present and each texture file has copyFromVanillaPaths (non-red)", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const mapleTextureFiles = files.filter(
+      (f) => f.path.endsWith(".png") && (f.path.includes("maple_") || f.path.includes("/maple_"))
+    );
+    assert.ok(mapleTextureFiles.length > 0, "must have at least one maple texture file");
+    for (const f of mapleTextureFiles) {
+      assert.ok(
+        f.copyFromVanillaPaths && f.copyFromVanillaPaths.length > 0,
+        `maple texture ${f.path} must have copyFromVanillaPaths so builder can copy vanilla (no red)`
+      );
+    }
+    const woodBlockIds = expanded.blocks.map((b) => b.id).filter((id) => id.startsWith("maple_"));
+    assert.ok(woodBlockIds.includes("maple_log"));
+    assert.ok(woodBlockIds.includes("maple_planks"));
+    assert.ok(woodBlockIds.includes("maple_stairs"));
+    assert.ok(woodBlockIds.includes("maple_boat") === false, "boat is item-only");
+    const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
+    assert.ok(recipeIds.includes("maple_planks_from_log"));
+    assert.ok(recipeIds.includes("maple_boat"));
+  });
 });

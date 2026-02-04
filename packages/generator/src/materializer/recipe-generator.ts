@@ -11,6 +11,16 @@ import type { MaterializedFile } from "./types.js";
 
 const DATA_RECIPES = "src/main/resources/data";
 
+/**
+ * Resolve a recipe key ingredient id to a stable item/tag id for JSON.
+ * If id already contains ":" (e.g. "minecraft:stick" or "#minecraft:logs"), return as-is.
+ * Otherwise treat as mod-local id and return `${modId}:${id}`.
+ */
+export function resolveIngredientId(modId: string, id: string): string {
+  if (id.includes(":")) return id;
+  return `${modId}:${id}`;
+}
+
 /** Crafting shapeless from spec: ingredients[] MUST have at least one entry. MC 1.21.1 result uses "id". */
 function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   const ingredients = (rec.ingredients ?? []).flatMap((ing) =>
@@ -42,7 +52,7 @@ function craftingShapedFromSpec(modId: string, rec: ModRecipe): string {
   }
   const keyOut: Record<string, { item: string }> = {};
   for (const [chr, val] of Object.entries(key)) {
-    if (val?.id) keyOut[chr] = { item: `${modId}:${val.id}` };
+    if (val?.id) keyOut[chr] = { item: resolveIngredientId(modId, val.id) };
   }
   return JSON.stringify(
     {

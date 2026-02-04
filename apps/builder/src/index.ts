@@ -42,6 +42,7 @@ import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, 
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
 import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
+import { getVanillaTextureBuffer, type VanillaAssetsSource } from "./vanilla-asset-source.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
   expandSpecTier1,
@@ -126,17 +127,46 @@ function textureSeedFromFile(relPath: string, file: MaterializedFile): string {
 /** Per-path texture metadata from profile-driven generator (for manifest). */
 const textureMetaByPath = new Map<string, { motifsApplied: string[]; materialClassApplied: string }>();
 
+export interface WriteMaterializedFilesOptions {
+  mcVersion?: string;
+}
+
 /**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
- * .png files with empty contents get a real 32x32 opaque PNG (material color + noise + motifs when profile present).
+ * If a .png has copyFromVanillaPaths, copies from VANILLA_ASSETS_SOURCE (client_jar or bundled_pack); fail loud if source not set or not found.
+ * Otherwise .png with empty contents gets a 32x32 opaque PNG (material color + noise + motifs when profile present).
  */
-function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
+async function writeMaterializedFiles(
+  files: MaterializedFile[],
+  workDir: string,
+  options?: WriteMaterializedFilesOptions
+): Promise<void> {
   textureMetaByPath.clear();
+  const needsVanilla = files.some((f) => f.path.endsWith(".png") && f.copyFromVanillaPaths?.length);
+  let vanillaSource: VanillaAssetsSource | null = null;
+  if (needsVanilla) {
+    const raw = process.env.VANILLA_ASSETS_SOURCE;
+    if (raw !== "client_jar" && raw !== "bundled_pack") {
+      throw new Error(
+        `[VANILLA_ASSETS] Some textures require copying from vanilla (copyFromVanillaPaths). Set VANILLA_ASSETS_SOURCE to "client_jar" or "bundled_pack". Current value: ${raw ?? "(unset)"}`
+      );
+    }
+    vanillaSource = raw;
+  }
+
   for (const file of files) {
-    const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt } = file;
+    const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt, copyFromVanillaPaths } = file;
     const fullPath = join(workDir, relPath);
     mkdirSync(dirname(fullPath), { recursive: true });
-    if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
+
+    if (relPath.endsWith(".png") && copyFromVanillaPaths?.length) {
+      const vanillaPath = copyFromVanillaPaths[0];
+      const buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, {
+        mcVersion: options?.mcVersion ?? process.env.MC_VERSION ?? "1.21.1",
+        bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
+      });
+      writeFileSync(fullPath, buffer);
+    } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
       const seed = textureSeedFromFile(relPath, file);
       const profile = (file as { textureProfile?: { materialClass?: string; visualMotifs?: string[] } }).textureProfile;
@@ -557,14 +587,12 @@ async function main(): Promise<void> {
         expanded.items.length > 0 && itemPlans.length > 0
           ? materializeTier1WithPlans(expanded, assets, itemPlans)
           : materializeTier1(expanded, assets);
-      writeMaterializedFiles(files, workDir);
+      await writeMaterializedFiles(files, workDir, {
+        mcVersion: specToUse.minecraftVersion ?? "1.21.1",
+      });
       validateGeneratedRecipeJsonFromFiles(files, workDir, specToUse);
       buildAndWriteTextureManifest(files, workDir);
-      validateBlockAsItemAssets(
-        files,
-        expanded.spec.blocks?.map((b) => b.id) ?? [],
-        expanded.spec.modId
-      );
+      validateBlockAsItemAssets(files, expanded.blocks.map((b) => b.id), expanded.spec.modId);
       validateTexturePngs(files, workDir);
       validateNoDuplicateTextures(files, workDir);
       validateNoPerceptuallyIdenticalTextures(files, workDir);

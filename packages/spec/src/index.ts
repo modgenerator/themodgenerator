@@ -4,6 +4,7 @@ export type {
   SpecDecision,
   SmeltingDecision,
   BlockFamily,
+  WoodType,
   TextureIntent,
   TextureProfile,
   TextureMaterialClass,
@@ -57,6 +58,9 @@ export {
 
 export type { ExpandedSpecTier1 } from "./expansion.js";
 export { expandSpecTier1 } from "./expansion.js";
+
+export type { WoodExpansionResult } from "./expand-wood-type.js";
+export { expandWoodType, expandWoodTypes, woodRecipesFromWoodTypes } from "./expand-wood-type.js";
 
 export type {
   ModSpecV2,

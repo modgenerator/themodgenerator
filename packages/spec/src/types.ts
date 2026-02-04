@@ -32,7 +32,19 @@ export type ModSpecV1 = {
   smelting?: SmeltingDecision[];
   /** Block families (variants). Generation driven by variant registry. */
   blockFamilies?: BlockFamily[];
+  /** Wood types to expand into full vanilla wood family (log, planks, stairs, slab, fence, door, boat, etc.). */
+  woodTypes?: WoodType[];
 };
+
+/** Declares a wood type; expansion generates the full craftable set (no worldgen unless added later). */
+export interface WoodType {
+  /** Display name (e.g. "Maple", "Cherry"). */
+  displayName: string;
+  /** Registry id prefix (e.g. "maple" -> maple_log, maple_planks, ...). Must be [a-z][a-z0-9_]*. */
+  id: string;
+  /** Optional flags (e.g. no recipes, no boats). Not used in initial implementation. */
+  familyOptions?: Record<string, unknown>;
+}
 
 export interface SmeltingDecision {
   input: "block" | "item";

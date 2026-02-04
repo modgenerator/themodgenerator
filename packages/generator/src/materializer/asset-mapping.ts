@@ -17,6 +17,7 @@ import {
   hasUserProvidedAsset,
   ARCHETYPES,
 } from "../canonical-interpretation.js";
+import { resolveVanillaVisualDefaults } from "../materialization/vanilla-visual-defaults.js";
 
 const ITEM_PREFIX = "item/";
 const BLOCK_PREFIX = "block/";
@@ -46,9 +47,10 @@ function collectIds(assets: AssetKey[]): { itemIds: string[]; blockIds: string[]
   };
 }
 
-function itemModelJson(modId: string, id: string): string {
+function itemModelJson(modId: string, id: string, parent?: string): string {
+  const modelParent = parent ?? CANONICAL_MODEL_ITEM;
   return `{
-  "parent": "${CANONICAL_MODEL_ITEM}",
+  "parent": "${modelParent}",
   "textures": {
     "layer0": "${modId}:item/${id}"
   }
@@ -106,9 +108,10 @@ function blockAsItemModelJson(modId: string, blockId: string): string {
 `;
 }
 
-function blockModelJson(modId: string, id: string): string {
+function blockModelJson(modId: string, id: string, parent?: string): string {
+  const modelParent = parent ?? CANONICAL_MODEL_BLOCK;
   return `{
-  "parent": "${CANONICAL_MODEL_BLOCK}",
+  "parent": "${modelParent}",
   "textures": {
     "all": "${modId}:block/${id}"
   }
@@ -241,11 +244,17 @@ export function assetKeysToFiles(
     const material = getCanonicalMaterial(materialForId(expanded, id, "item"));
     const meta = semanticMetadataForTexture(expanded, id, "item");
     const itemSpec = expanded.spec.items?.find((i) => i.id === id);
-    const itemRender = expanded.items.find((i) => i.id === id)?.itemRender ?? itemSpec?.itemRender ?? "chunky";
+    const itemFromExpanded = expanded.items.find((i) => i.id === id);
+    const itemRender = itemFromExpanded?.itemRender ?? itemSpec?.itemRender ?? "chunky";
     const colorHint = itemSpec?.colorHint;
     const textureIntent = itemSpec?.textureIntent ?? "item";
     const textureProfile = itemSpec?.textureProfile;
     const texturePrompt = textureProfile ? buildTexturePrompt(textureProfile) : undefined;
+    const hasUserTexture = Boolean(itemSpec?.texturePath);
+    const vanillaDefault =
+      !hasUserTexture && itemFromExpanded
+        ? resolveVanillaVisualDefaults({ id: itemFromExpanded.id, name: itemFromExpanded.name }, { modId })
+        : null;
     files.push({
       path: `${baseAssets}/textures/item/${id}.png`,
       contents: "",
@@ -254,14 +263,17 @@ export function assetKeysToFiles(
       textureIntent,
       ...(textureProfile && { textureProfile }),
       ...(texturePrompt && { texturePrompt }),
+      ...(vanillaDefault && { copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths }),
       ...meta,
     });
-    const isBlockId = expanded.spec.blocks?.some((b) => b.id === id);
+    const isBlockId = expanded.blocks.some((b) => b.id === id);
     let modelContents: string;
     if (itemRender === "blocklike" && isBlockId) {
       modelContents = blockAsItemModelJson(modId, id);
     } else if (itemRender === "rod" || itemRender === "chunky" || itemRender === "plate") {
       modelContents = itemModelJsonWithElements(modId, id, itemRender);
+    } else if (vanillaDefault && !isBlockId) {
+      modelContents = itemModelJson(modId, id, vanillaDefault.modelParent);
     } else {
       modelContents = itemModelJson(modId, id);
     }
@@ -274,10 +286,15 @@ export function assetKeysToFiles(
     const material = getCanonicalMaterial(materialForId(expanded, id, "block"));
     const meta = semanticMetadataForTexture(expanded, id, "block");
     const blockSpec = expanded.spec.blocks?.find((b) => b.id === id);
+    const blockFromExpanded = expanded.blocks.find((b) => b.id === id);
     const colorHint = blockSpec?.colorHint;
     const textureIntent = blockSpec?.textureIntent ?? "block";
     const textureProfile = blockSpec?.textureProfile;
     const texturePrompt = textureProfile ? buildTexturePrompt(textureProfile) : undefined;
+    const hasUserTexture = Boolean(blockSpec?.texturePath);
+    const vanillaDefault = !hasUserTexture && blockFromExpanded
+      ? resolveVanillaVisualDefaults({ id: blockFromExpanded.id, name: blockFromExpanded.name, type: "block" }, { modId })
+      : null;
     files.push({
       path: `${baseAssets}/textures/block/${id}.png`,
       contents: "",
@@ -286,11 +303,12 @@ export function assetKeysToFiles(
       textureIntent,
       ...(textureProfile && { textureProfile }),
       ...(texturePrompt && { texturePrompt }),
+      ...(vanillaDefault && { copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths }),
       ...meta,
     });
     files.push({
       path: `${baseAssets}/models/block/${id}.json`,
-      contents: blockModelJson(modId, id),
+      contents: blockModelJson(modId, id, vanillaDefault?.modelParent),
     });
     files.push({
       path: `${baseAssets}/blockstates/${id}.json`,

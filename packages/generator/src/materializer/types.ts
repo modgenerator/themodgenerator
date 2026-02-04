@@ -45,6 +45,8 @@ export interface MaterializedFile {
   textureSourceKey?: string;
   /** Visual features enabled (emissive, glow, layered). */
   visualFeatures?: string[];
+  /** When set, builder copies these vanilla texture paths (relative to assets/minecraft/textures, no .png) instead of generating. */
+  copyFromVanillaPaths?: string[];
 }
 
 export interface FabricMaterializerTier1 {

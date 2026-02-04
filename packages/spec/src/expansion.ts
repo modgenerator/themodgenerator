@@ -14,6 +14,7 @@ import type { ItemSpec, BlockSpec } from "./specs.js";
 import { itemSpecFromModItem, blockSpecFromModBlock } from "./specs.js";
 import { TIER_1 } from "./tier.js";
 import type { VisualDescriptorTier1, HandheldItemDescriptor, CubeBlockDescriptor } from "./descriptor.js";
+import { expandWoodTypes, woodRecipesFromWoodTypes } from "./expand-wood-type.js";
 
 export interface ExpandedSpecTier1 {
   /** Original spec. */
@@ -53,19 +54,28 @@ function blockToDescriptor(block: BlockSpec): CubeBlockDescriptor {
 
 /** Expand a Tier 1 spec: derive ItemSpec/BlockSpec and implied visual descriptors. Same input → same output order. */
 export function expandSpecTier1(spec: ModSpecV1): ExpandedSpecTier1 {
-  const items: ItemSpec[] = (spec.items ?? []).map((m) =>
+  const explicitItems: ItemSpec[] = (spec.items ?? []).map((m) =>
     itemSpecFromModItem(m, TIER_1)
   );
-  const blocks: BlockSpec[] = (spec.blocks ?? []).map((m) =>
+  const explicitBlocks: BlockSpec[] = (spec.blocks ?? []).map((m) =>
     blockSpecFromModBlock(m, TIER_1)
   );
+  const wood = expandWoodTypes(spec.woodTypes ?? []);
+  const items: ItemSpec[] = [...explicitItems, ...wood.itemSpecs];
+  const blocks: BlockSpec[] = [...explicitBlocks, ...wood.blockSpecs];
   const descriptors: VisualDescriptorTier1[] = [
     ...items.map(itemToDescriptor),
     ...blocks.map(blockToDescriptor),
   ];
 
+  const woodRecipes = woodRecipesFromWoodTypes(spec.woodTypes ?? []);
+  const specWithRecipes =
+    woodRecipes.length > 0
+      ? { ...spec, recipes: [...(spec.recipes ?? []), ...woodRecipes] }
+      : spec;
+
   return {
-    spec,
+    spec: specWithRecipes,
     items,
     blocks,
     descriptors,

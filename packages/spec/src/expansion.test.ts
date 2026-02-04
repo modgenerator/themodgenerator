@@ -50,4 +50,41 @@ describe("expandSpecTier1", () => {
     assert.strictEqual(expanded.descriptors[1].type, "cube_block");
     assert.strictEqual(expanded.descriptors[1].contentId, "b");
   });
+
+  it("woodTypes expand to full wood family items and blocks", () => {
+    const spec = minimalSpec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const woodBlockIds = expanded.blocks.map((b) => b.id).filter((id) => id.startsWith("maple_"));
+    const woodItemIds = expanded.items.map((i) => i.id).filter((id) => id.startsWith("maple_"));
+    assert.ok(woodBlockIds.includes("maple_log"));
+    assert.ok(woodBlockIds.includes("maple_planks"));
+    assert.ok(woodBlockIds.includes("maple_stairs"));
+    assert.ok(woodItemIds.includes("maple_log"));
+    assert.ok(woodItemIds.includes("maple_boat"));
+    assert.strictEqual(expanded.descriptors.filter((d) => d.type === "handheld_item").length, expanded.items.length);
+    assert.strictEqual(expanded.descriptors.filter((d) => d.type === "cube_block").length, expanded.blocks.length);
+  });
+
+  it("woodTypes add vanilla-style recipes (log→planks, stairs, slab, boat, chest_boat, etc.)", () => {
+    const spec = minimalSpec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
+    assert.ok(recipeIds.includes("maple_planks_from_log"));
+    assert.ok(recipeIds.includes("maple_stairs"));
+    assert.ok(recipeIds.includes("maple_slab"));
+    assert.ok(recipeIds.includes("maple_fence"));
+    assert.ok(recipeIds.includes("maple_fence_gate"));
+    assert.ok(recipeIds.includes("maple_door"));
+    assert.ok(recipeIds.includes("maple_trapdoor"));
+    assert.ok(recipeIds.includes("maple_button"));
+    assert.ok(recipeIds.includes("maple_pressure_plate"));
+    assert.ok(recipeIds.includes("maple_sign"));
+    assert.ok(recipeIds.includes("maple_hanging_sign"));
+    assert.ok(recipeIds.includes("maple_boat"));
+    assert.ok(recipeIds.includes("maple_chest_boat"));
+  });
 });

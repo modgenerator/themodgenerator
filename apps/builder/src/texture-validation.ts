@@ -187,6 +187,60 @@ export function getPngColorType(buffer: Buffer): number | null {
   return decoded ? decoded.colorType : null;
 }
 
+/** Simple string hash for deterministic per-entity variation. */
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
+/**
+ * Apply deterministic per-entity variation so the same source never produces byte-identical output for different paths.
+ * Decodes PNG to raw RGBA, tweaks at least one pixel based on relPath (hue/brightness), re-encodes.
+ * Guarantees: output differs from any other relPath; visually similar (minimal change).
+ */
+export function applyPerEntityVariation(buffer: Buffer, relPath: string): Buffer {
+  const rgba = ensurePngRgba(buffer);
+  const decoded = decodePngRaw(rgba);
+  if (!decoded || (decoded.colorType !== 2 && decoded.colorType !== 6)) return rgba;
+  const { width, height, colorType, raw } = decoded;
+  const rowSize = colorType === 6 ? 1 + width * 4 : 1 + width * 3;
+  const bpp = colorType === 6 ? 4 : 3;
+  const h = hashString(relPath);
+  const pxIndex = h % (width * height);
+  const y = Math.floor(pxIndex / width);
+  const x = pxIndex % width;
+  const offset = y * rowSize + 1 + x * bpp;
+  if (offset + bpp > raw.length) return rgba;
+  const delta = (h % 13) - 6;
+  raw[offset] = Math.max(0, Math.min(255, (raw[offset] ?? 0) + delta));
+  if (bpp >= 3) {
+    raw[offset + 1] = Math.max(0, Math.min(255, (raw[offset + 1] ?? 0) + ((h >> 8) % 7) - 3));
+    raw[offset + 2] = Math.max(0, Math.min(255, (raw[offset + 2] ?? 0) + ((h >> 16) % 7) - 3));
+  }
+  if (colorType === 2) {
+    const outRows = Buffer.alloc(height * (1 + width * 4));
+    for (let yy = 0; yy < height; yy++) {
+      outRows[yy * (1 + width * 4)] = 0;
+      for (let xx = 0; xx < width; xx++) {
+        const src = yy * rowSize + 1 + xx * 3;
+        const dst = yy * (1 + width * 4) + 1 + xx * 4;
+        outRows[dst] = raw[src] ?? 0;
+        outRows[dst + 1] = raw[src + 1] ?? 0;
+        outRows[dst + 2] = raw[src + 2] ?? 0;
+        outRows[dst + 3] = 255;
+      }
+    }
+    const dstRowSize = 1 + width * 4;
+    const dstOffset = y * dstRowSize + 1 + x * 4;
+    outRows[dstOffset] = Math.max(0, Math.min(255, outRows[dstOffset] + delta));
+    outRows[dstOffset + 1] = Math.max(0, Math.min(255, outRows[dstOffset + 1] + ((h >> 8) % 7) - 3));
+    outRows[dstOffset + 2] = Math.max(0, Math.min(255, outRows[dstOffset + 2] + ((h >> 16) % 7) - 3));
+    return encodeRawRgbaToPng(width, height, outRows);
+  }
+  return encodeRawRgbaToPng(width, height, raw);
+}
+
 /**
  * For RGBA (colorType 6): each row = 1 filter byte + width*4 bytes. Check alpha and variation.
  */

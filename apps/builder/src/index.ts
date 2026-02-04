@@ -41,7 +41,7 @@ import {
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
-import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba } from "./texture-validation.js";
+import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba, applyPerEntityVariation } from "./texture-validation.js";
 import { getVanillaTextureBuffer, logVanillaAssetsPackAtStartup, type VanillaAssetsSource } from "./vanilla-asset-source.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
@@ -170,6 +170,7 @@ async function writeMaterializedFiles(
         bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
       });
       buffer = ensurePngRgba(buffer);
+      buffer = applyPerEntityVariation(buffer, relPath);
       writeFileSync(fullPath, buffer);
     } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
@@ -184,11 +185,13 @@ async function writeMaterializedFiles(
         seed,
         textureProfile: profile ?? undefined,
       });
-      const rgbaBuffer = ensurePngRgba(pngBuffer);
+      let rgbaBuffer = ensurePngRgba(pngBuffer);
+      rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
       writeFileSync(fullPath, rgbaBuffer);
       if (profile) textureMetaByPath.set(relPath, { motifsApplied, materialClassApplied });
     } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
-      const rgbaBuffer = ensurePngRgba(Buffer.from(contents, "base64"));
+      let rgbaBuffer = ensurePngRgba(Buffer.from(contents, "base64"));
+      rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
       writeFileSync(fullPath, rgbaBuffer);
     } else {
       writeFileSync(fullPath, contents, "utf8");

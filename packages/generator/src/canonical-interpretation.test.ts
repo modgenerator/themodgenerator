@@ -65,6 +65,11 @@ describe("resolveArchetype", () => {
     );
   });
 
+  it("tech/industrial compound ids and generic names map to tech archetypes (generic keyword)", () => {
+    assert.strictEqual(resolveArchetype(signals("tech_gadget", "item", "generic")), "tech_device");
+    assert.strictEqual(resolveArchetype(signals("industrial_machine", "block", "generic")), "industrial_block");
+  });
+
   it("unknown intent → stable fallback archetype (creative_item / creative_block)", () => {
     assert.strictEqual(
       resolveArchetype(signals("thing", "item", "generic")),

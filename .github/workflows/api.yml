@@ -28,9 +28,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
       - name: Validate schema.json
         run: |
           node packages/spec/scripts/validate-schema.mjs
+
+      - name: Install deps and run generator tests (block deploy if tests fail)
+        run: |
+          npm ci
+          npm run build -w @themodgenerator/spec
+          npm run build -w @themodgenerator/generator
+          npm run test -w @themodgenerator/generator
 
       - name: Authenticate to GCP (WIF)
         id: auth

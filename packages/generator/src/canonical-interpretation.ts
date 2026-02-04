@@ -309,10 +309,11 @@ export function resolveArchetype(signals: IntentSignals): ArchetypeId {
   const isBlock = signals.category === "block";
 
   // Item archetypes (deterministic keyword matching)
+  // Use \w* after tech/industrial so compound ids (tech_device, industrial_cube) match
   if (isItem) {
     if (/\b(wand|staff|scepter|magic)\b/.test(combined)) return "magical_wand";
     if (/\b(relic|artifact|ancient)\b/.test(combined)) return "ancient_relic";
-    if (/\b(tech|device|mechanic|circuit)\b/.test(combined)) return "tech_device";
+    if (/\b(tech\w*|device|mechanic|circuit|gadget|machine)\b/.test(combined)) return "tech_device";
     if (/\b(crystal|gem|shard)\b/.test(combined) && (mat === "gem" || /\bcrystal\b/.test(combined)))
       return "crystal_object";
     if (/\b(organic|leaf|vine|root)\b/.test(combined)) return "organic_material";
@@ -325,7 +326,7 @@ export function resolveArchetype(signals: IntentSignals): ArchetypeId {
   if (isBlock) {
     if (/\b(crystal|gem)\b/.test(combined) && (mat === "gem" || /\bcrystal\b/.test(combined)))
       return "crystal_object";
-    if (/\b(industrial|machine|factory|tech)\b/.test(combined)) return "industrial_block";
+    if (/\b(industrial\w*|machine|factory|tech\w*)\b/.test(combined)) return "industrial_block";
     if (/\b(mystical|magic|rune|arcane)\b/.test(combined)) return "mystical_block";
     if (/\b(organic|leaf|vine)\b/.test(combined)) return "organic_material";
     if (/\b(corrupt|dark)\b/.test(combined)) return "mystical_block"; // dark block → mystical fallback

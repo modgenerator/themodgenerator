@@ -267,6 +267,37 @@ describe("materializer invariants", () => {
     assert.ok(recipeFiles.every((f) => f.path.startsWith("src/main/resources/data/test_mod/recipes/")), "recipes must be under data/<modId>/recipes/");
   });
 
+  it("integration: smoking and campfire_cooking emit same schema as smelting (result string, ingredient.item, count)", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "raw", name: "Raw" }, { id: "cooked", name: "Cooked" }, { id: "smoked", name: "Smoked" }, { id: "campfire", name: "Campfire" }],
+      recipes: [
+        { id: "smoked_from_raw", type: "smoking", ingredients: [{ id: "raw", count: 1 }], result: { id: "smoked", count: 1 } },
+        { id: "campfire_from_raw", type: "campfire_cooking", ingredients: [{ id: "raw", count: 1 }], result: { id: "campfire", count: 1 } },
+      ],
+    });
+    const expanded = expandSpecTier1(spec);
+    const recipeFiles = recipeDataFiles(expanded);
+    assert.strictEqual(recipeFiles.length, 2, "must emit 2 recipe files");
+
+    const smokingFile = recipeFiles.find((f) => f.path.includes("smoked_from_raw"));
+    assert.ok(smokingFile, "smoking recipe file must exist");
+    const smokingJson = JSON.parse(smokingFile!.contents) as { type: string; ingredient: { item: string }; result: string; count: number };
+    assert.strictEqual(smokingJson.type, "minecraft:smoking");
+    assert.strictEqual(typeof smokingJson.result, "string", "cooking result must be string");
+    assert.ok(smokingJson.result.includes(":smoked"));
+    assert.strictEqual(typeof smokingJson.ingredient?.item, "string");
+    assert.strictEqual(smokingJson.count, 1);
+
+    const campfireFile = recipeFiles.find((f) => f.path.includes("campfire_from_raw"));
+    assert.ok(campfireFile, "campfire recipe file must exist");
+    const campfireJson = JSON.parse(campfireFile!.contents) as { type: string; ingredient: { item: string }; result: string; count: number };
+    assert.strictEqual(campfireJson.type, "minecraft:campfire_cooking");
+    assert.strictEqual(typeof campfireJson.result, "string", "cooking result must be string");
+    assert.ok(campfireJson.result.includes(":campfire"));
+    assert.strictEqual(typeof campfireJson.ingredient?.item, "string");
+    assert.strictEqual(campfireJson.count, 1);
+  });
+
   it("item with itemRender rod produces item model JSON containing elements", () => {
     const spec = minimalTier1Spec({
       items: [{ id: "metal_rod", name: "Metal Rod", itemRender: "rod" }],
@@ -277,6 +308,20 @@ describe("materializer invariants", () => {
     const itemModel = files.find((f) => f.path.includes("models/item/metal_rod.json"));
     assert.ok(itemModel, "item model for metal_rod must exist");
     assert.ok(itemModel.contents.includes('"elements"'), "rod item model must contain elements");
+    const parsed = JSON.parse(itemModel.contents) as { elements?: unknown[] };
+    assert.ok(Array.isArray(parsed.elements) && parsed.elements.length > 0, "elements must be non-empty array");
+  });
+
+  it("item with inferred keyword (Gear) itemRender rod produces model with elements", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "gear", name: "Gear", itemRender: "rod" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const itemModel = files.find((f) => f.path.includes("models/item/gear.json"));
+    assert.ok(itemModel, "item model for gear must exist");
+    assert.ok(itemModel.contents.includes('"elements"'), "gear (rod) item model must contain elements");
     const parsed = JSON.parse(itemModel.contents) as { elements?: unknown[] };
     assert.ok(Array.isArray(parsed.elements) && parsed.elements.length > 0, "elements must be non-empty array");
   });

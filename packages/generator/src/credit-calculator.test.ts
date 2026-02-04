@@ -43,7 +43,9 @@ describe("getScopeBudgetResult", () => {
     const result = getScopeBudgetResult(scope, budget);
     assert.strictEqual(result.fitsBudget, true);
     assert.strictEqual(result.overBy, 0);
-    assert.strictEqual(result.totalCredits, 5 + 10);
+    // totalCredits is snapped to nearest tier (5, 30, 60, 120, 300). Raw 15 snaps to 5.
+    assert.strictEqual(result.totalCredits, 5);
+    assert.strictEqual(result.budget, 30);
     assert.strictEqual(result.explanation, "");
   });
 

@@ -125,6 +125,23 @@ export function generateOpaquePng16x16WithProfile(options: {
     }
   }
 
+  const pixelIdx = (x: number, y: number) => 1 + y * rowSize + x * 4;
+  const getPixel = (x: number, y: number): [number, number, number] => {
+    const i = pixelIdx(x, y);
+    return [rawRows[i] ?? 0, rawRows[i + 1] ?? 0, rawRows[i + 2] ?? 0];
+  };
+  const setPixel = (x: number, y: number, r: number, g: number, b: number) => {
+    if (x < 0 || x >= W || y < 0 || y >= H) return;
+    const i = pixelIdx(x, y);
+    rawRows[i] = Math.max(0, Math.min(255, r));
+    rawRows[i + 1] = Math.max(0, Math.min(255, g));
+    rawRows[i + 2] = Math.max(0, Math.min(255, b));
+  };
+  const darken = (x: number, y: number, factor: number) => {
+    const [rr, gg, bb] = getPixel(x, y);
+    setPixel(x, y, rr * factor, gg * factor, bb * factor);
+  };
+
   if (motifsRequested.includes("holes") && seed) {
     const numHoles = 2 + (Math.floor(hashToFloat(seed + "-holes") * 2) % 2);
     for (let i = 0; i < numHoles; i++) {
@@ -134,20 +151,100 @@ export function generateOpaquePng16x16WithProfile(options: {
       for (let dy = -radius; dy <= radius; dy++) {
         for (let dx = -radius; dx <= radius; dx++) {
           if (dx * dx + dy * dy <= radius * radius) {
-            const x = cx + dx;
-            const y = cy + dy;
-            if (x >= 0 && x < W && y >= 0 && y < H) {
-              const idx = 1 + y * rowSize + x * 4;
-              const dark = 0.4;
-              rawRows[idx] = Math.floor(rawRows[idx]! * dark);
-              rawRows[idx + 1] = Math.floor(rawRows[idx + 1]! * dark);
-              rawRows[idx + 2] = Math.floor(rawRows[idx + 2]! * dark);
-            }
+            darken(cx + dx, cy + dy, 0.4);
           }
         }
       }
     }
     motifsApplied.push("holes");
+  }
+
+  if (motifsRequested.includes("grain") && seed) {
+    for (let x = 0; x < W; x++) {
+      const streak = hashToFloat(seed + "-grain-x-" + x) > 0.5 || x % 4 === 0;
+      if (!streak) continue;
+      for (let y = 0; y < H; y++) darken(x, y, 0.85);
+    }
+    motifsApplied.push("grain");
+  }
+
+  if (motifsRequested.includes("strata") && seed) {
+    for (let y = 0; y < H; y++) {
+      const band = Math.floor(y / 4);
+      const delta = (hashToFloat(seed + "-strata-" + band) - 0.5) * 35;
+      for (let x = 0; x < W; x++) {
+        const [rr, gg, bb] = getPixel(x, y);
+        setPixel(x, y, rr + delta, gg + delta, bb + delta);
+      }
+    }
+    motifsApplied.push("strata");
+  }
+
+  if (motifsRequested.includes("veins") && seed) {
+    const numVeins = 2 + (Math.floor(hashToFloat(seed + "-veins") * 2) % 2);
+    for (let v = 0; v < numVeins; v++) {
+      const x0 = Math.floor(hashToFloat(seed + "-v" + v + "-x0") * W);
+      const y0 = Math.floor(hashToFloat(seed + "-v" + v + "-y0") * H);
+      const x1 = Math.floor(hashToFloat(seed + "-v" + v + "-x1") * W);
+      const y1 = Math.floor(hashToFloat(seed + "-v" + v + "-y1") * H);
+      const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+      for (let t = 0; t <= steps; t++) {
+        const x = Math.round(x0 + (t / steps) * (x1 - x0));
+        const y = Math.round(y0 + (t / steps) * (y1 - y0));
+        darken(x, y, 0.6);
+        if (x + 1 < W) darken(x + 1, y, 0.75);
+        if (y + 1 < H) darken(x, y + 1, 0.75);
+      }
+    }
+    motifsApplied.push("veins");
+  }
+
+  if (motifsRequested.includes("bubbles") && seed) {
+    const numBubbles = 2 + (Math.floor(hashToFloat(seed + "-bubbles") * 2) % 2);
+    for (let i = 0; i < numBubbles; i++) {
+      const cx = Math.floor(hashToFloat(seed + `-bub-${i}-x`) * (W - 8)) + 4;
+      const cy = Math.floor(hashToFloat(seed + `-bub-${i}-y`) * (H - 8)) + 4;
+      const radius = 2 + (i % 2);
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx * dx + dy * dy <= radius * radius) {
+            const x = cx + dx;
+            const y = cy + dy;
+            const [rr, gg, bb] = getPixel(x, y);
+            const inner = dx * dx + dy * dy <= (radius * 0.5) ** 2;
+            const mul = inner ? 1.15 : 0.75;
+            setPixel(x, y, rr * mul, gg * mul, bb * mul);
+          }
+        }
+      }
+    }
+    motifsApplied.push("bubbles");
+  }
+
+  if (motifsRequested.includes("flakes") && seed) {
+    const numFlakes = 8 + (Math.floor(hashToFloat(seed + "-flakes") * 8) % 8);
+    for (let i = 0; i < numFlakes; i++) {
+      const fx = Math.floor(hashToFloat(seed + "-flake-" + i + "-x") * W) % W;
+      const fy = Math.floor(hashToFloat(seed + "-flake-" + i + "-y") * H) % H;
+      darken(fx, fy, 0.5);
+      if (fx + 1 < W) darken(fx + 1, fy, 0.6);
+      if (fy + 1 < H) darken(fx, fy + 1, 0.6);
+    }
+    motifsApplied.push("flakes");
+  }
+
+  if (motifsRequested.includes("rings") && seed) {
+    const cx = W / 2 - 0.5;
+    const cy = H / 2 - 0.5;
+    for (const r of [6, 12, 18]) {
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const d = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+          if (Math.abs(d - r) < 1.2) darken(x, y, 0.65);
+        }
+      }
+    }
+    motifsApplied.push("rings");
   }
 
   const rawData = Buffer.from(rawRows);

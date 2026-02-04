@@ -7,6 +7,7 @@
 import type { ModSpecV1, ItemRenderIntent } from "@themodgenerator/spec";
 import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
 import type { ClarificationResponse } from "./clarification.js";
+import { extractEntityList } from "./entity-list-extractor.js";
 import { inferItemRender } from "./infer-item-render.js";
 import { clarificationGate } from "./clarification.js";
 import { analyzePromptIntent } from "./prompt-understanding.js";
@@ -151,6 +152,8 @@ export function interpretToSpec(
     /\bno\s+(tools?|weapons?)\b|\bno\s+tools?\s+or\s+weapons?\b|\b(without|don't?\s*add)\s+(any\s+)?(tools?|weapons?)\b/.test(lowerForConstraints);
   const requirePickaxeMining = /\bmineable\s+with\s+(a\s+)?pickaxe\b|\bpickaxe\s+min(eable|ing)\b/.test(lowerForConstraints);
 
+  const entityExtraction = extractEntityList(originalOnly);
+
   const spec: ModSpecV1 = {
     schemaVersion: 1,
     minecraftVersion: SUPPORTED_MINECRAFT_VERSION,
@@ -206,7 +209,34 @@ export function interpretToSpec(
     return { entity: out };
   }
 
-  if (isBlock) {
+  if (entityExtraction.entities.length > 0) {
+    for (const e of entityExtraction.entities) {
+      const displayName = e.displayName.trim() || "Item";
+      const isBlockEntity = e.type === "block" && !entityExtraction.noBlocks;
+      const rawId = slugFromDisplayName(displayName, isBlockEntity);
+      const finalId = (/^[a-z][a-z0-9_]*$/.test(rawId) && rawId.length <= MAX_ID_LEN ? rawId : shortIdFromConcepts([displayName.toLowerCase().replace(/[^a-z0-9]/g, "_")], isBlockEntity)).slice(0, MAX_ID_LEN);
+      if (isBlockEntity) {
+        const blockResult = attachTextureProfile(displayName, "block", { id: finalId, name: displayName, ...(colorHint && { colorHint }) });
+        if (blockResult.clarification) return blockResult.clarification;
+        spec.blocks = [...(spec.blocks ?? []), blockResult.entity];
+      } else {
+        const itemResult = attachTextureProfile(displayName, "item", { id: finalId, name: displayName, ...(colorHint && { colorHint }) });
+        if (itemResult.clarification) return itemResult.clarification;
+        spec.items = [...(spec.items ?? []), itemResult.entity];
+      }
+    }
+    const firstName = spec.items?.[0]?.name ?? spec.blocks?.[0]?.name;
+    if (firstName && !containsPoison(firstName)) {
+      (spec as { modName?: string }).modName = `${firstName.replace(/\s+Block$/i, "").trim()} Mod`;
+    }
+    return { type: "proceed", spec };
+  }
+
+  const noBlocks = entityExtraction.noBlocks;
+  const noRecipes = entityExtraction.noRecipes;
+  const effectiveBlock = isBlock && !noBlocks;
+
+  if (effectiveBlock) {
     const blockResult = attachTextureProfile(displayName || "Block", "block", {
       id: finalBlockId,
       name: displayName || "Block",
@@ -265,7 +295,7 @@ export function interpretToSpec(
     });
     if (itemResult.clarification) return itemResult.clarification;
     spec.items = [itemResult.entity];
-    if (wantsSmelt) {
+    if (!noRecipes && wantsSmelt) {
       const meltedId = ("melted_" + finalBaseId).slice(0, MAX_ID_LEN);
       const finalMeltedId = /^[a-z][a-z0-9_]*$/.test(meltedId) ? meltedId : "melted_" + finalBaseId.slice(0, MAX_ID_LEN - 7);
       const meltedResult = attachTextureProfile("Melted " + (displayName || "Item"), "processed", {

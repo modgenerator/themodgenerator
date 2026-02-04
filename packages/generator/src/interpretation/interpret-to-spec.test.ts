@@ -61,4 +61,38 @@ describe("interpretToSpec", () => {
     assert.strictEqual(result.spec.blocks?.length, 1);
     assert.strictEqual((result.spec.recipes?.length ?? 0), 0);
   });
+
+  it("Add three items: Ruby, Sapphire, Raw Tin. No blocks. No recipes → 3 items, 0 blocks, 0 recipes", () => {
+    const result = interpretToSpec("Add three items: Ruby, Sapphire, Raw Tin. No blocks. No recipes");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.items?.length, 3, "must have exactly 3 items");
+    assert.strictEqual(spec.blocks?.length ?? 0, 0, "must have no blocks");
+    assert.strictEqual(spec.recipes?.length ?? 0, 0, "must have no recipes");
+    const names = spec.items!.map((i: { name: string }) => i.name);
+    assert.ok(names.includes("Ruby") && names.includes("Sapphire") && names.includes("Raw Tin"), "items must be Ruby, Sapphire, Raw Tin");
+  });
+
+  it("Add two blocks: Marble Block, Slate Block → 2 blocks", () => {
+    const result = interpretToSpec("Add two blocks: Marble Block, Slate Block");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.blocks?.length, 2, "must have exactly 2 blocks");
+    const names = spec.blocks!.map((b: { name: string }) => b.name);
+    assert.ok(names.includes("Marble Block") && names.includes("Slate Block"), "blocks must be Marble Block, Slate Block");
+  });
+
+  it("Add items (Ruby, Sapphire) and block (Marble Block) → correct counts and types", () => {
+    const result = interpretToSpec("Add items (Ruby, Sapphire) and block (Marble Block)");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.items?.length, 2, "must have 2 items");
+    assert.strictEqual(spec.blocks?.length, 1, "must have 1 block");
+    const itemNames = spec.items!.map((i: { name: string }) => i.name);
+    assert.ok(itemNames.includes("Ruby") && itemNames.includes("Sapphire"), "items must be Ruby and Sapphire");
+    assert.strictEqual(spec.blocks![0].name, "Marble Block", "block must be Marble Block");
+  });
 });

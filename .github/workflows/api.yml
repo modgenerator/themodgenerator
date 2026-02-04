@@ -42,6 +42,7 @@ jobs:
         run: |
           npm ci
           npm run build -w @themodgenerator/spec
+          npm run build -w @themodgenerator/validator
           npm run build -w @themodgenerator/generator
           npm run test -w @themodgenerator/generator
 

@@ -14,7 +14,7 @@
     "@themodgenerator/spec": "*"
   },
   "devDependencies": {
-    "@themodgenerator/validator": "workspace:*",
+    "@themodgenerator/validator": "*",
     "typescript": "~5.3.3"
   }
 }

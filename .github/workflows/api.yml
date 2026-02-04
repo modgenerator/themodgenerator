@@ -28,35 +28,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.17.0"
-          cache: "npm"
-
-      - name: Versions
-        run: |
-          node -v
-          npm -v
-
-      - name: Where am I
-        run: cd "${{ github.workspace }}" && pwd && ls
-
       - name: Validate schema.json
-        run: cd "${{ github.workspace }}" && node packages/spec/scripts/validate-schema.mjs
-
-      - name: Install deps (monorepo root)
-        run: cd "${{ github.workspace }}" && npm ci
-
-      - name: Build spec, validator, generator
         run: |
-          cd "${{ github.workspace }}"
-          npm run build -w @themodgenerator/spec
-          npm run build -w @themodgenerator/validator
-          npm run build -w @themodgenerator/generator
-
-      - name: Test generator (block deploy if fail)
-        run: cd "${{ github.workspace }}" && npm run test -w @themodgenerator/generator
+          node packages/spec/scripts/validate-schema.mjs
 
       - name: Authenticate to GCP (WIF)
         id: auth

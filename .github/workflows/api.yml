@@ -41,23 +41,26 @@ jobs:
 
       - name: Confirm repo root (for npm workspace)
         working-directory: ${{ github.workspace }}
-        run: |
-          pwd
-          ls
+        run: pwd && ls
 
       - name: Validate schema.json
         working-directory: ${{ github.workspace }}
-        run: |
-          node packages/spec/scripts/validate-schema.mjs
+        run: node packages/spec/scripts/validate-schema.mjs
 
-      - name: Install deps and run generator tests (block deploy if tests fail)
+      - name: Install deps (monorepo root)
+        working-directory: ${{ github.workspace }}
+        run: npm ci
+
+      - name: Build spec, validator, generator
         working-directory: ${{ github.workspace }}
         run: |
-          npm ci
           npm run build -w @themodgenerator/spec
           npm run build -w @themodgenerator/validator
           npm run build -w @themodgenerator/generator
-          npm run test -w @themodgenerator/generator
+
+      - name: Test generator (block deploy if fail)
+        working-directory: ${{ github.workspace }}
+        run: npm run test -w @themodgenerator/generator
 
       - name: Authenticate to GCP (WIF)
         id: auth

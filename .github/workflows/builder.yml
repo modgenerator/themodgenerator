@@ -34,11 +34,19 @@ jobs:
           node -v
           npm -v
 
+      - name: Confirm repo root (for npm workspace)
+        working-directory: .
+        run: |
+          pwd
+          ls -la
+
       - name: Validate schema.json
+        working-directory: .
         run: |
           node packages/spec/scripts/validate-schema.mjs
 
       - name: Install deps and run generator + builder tests (block deploy if tests fail)
+        working-directory: .
         run: |
           npm ci
           npm run build -w @themodgenerator/spec

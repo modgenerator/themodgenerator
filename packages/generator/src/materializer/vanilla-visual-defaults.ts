@@ -120,7 +120,7 @@ const VANILLA_ITEM: Record<VisualKind, { parent: string; texture: string } | und
   [VisualKind.ROD]: { parent: "minecraft:item/handheld", texture: "item/blaze_rod" },
   [VisualKind.PLATE]: { parent: "minecraft:item/generated", texture: "item/iron_ingot" },
   [VisualKind.FOOD]: { parent: "minecraft:item/generated", texture: "item/apple" },
-  [VisualKind.SIMPLE_ITEM]: { parent: "minecraft:item/generated", texture: "item/stone" },
+  [VisualKind.SIMPLE_ITEM]: { parent: "minecraft:item/generated", texture: "item/iron_ingot" },
   [VisualKind.TOOL_SWORD]: { parent: "minecraft:item/handheld", texture: "item/iron_sword" },
   [VisualKind.TOOL_PICKAXE]: { parent: "minecraft:item/handheld", texture: "item/iron_pickaxe" },
   [VisualKind.TOOL_AXE]: { parent: "minecraft:item/handheld", texture: "item/iron_axe" },

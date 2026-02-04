@@ -73,7 +73,7 @@ const VANILLA_TEMPLATE: Record<VisualKind, string> = {
   [VisualKind.ROD]: "item/blaze_rod",
   [VisualKind.PLATE]: "item/iron_ingot",
   [VisualKind.FOOD]: "item/apple",
-  [VisualKind.SIMPLE_ITEM]: "item/stone",
+  [VisualKind.SIMPLE_ITEM]: "item/iron_ingot",
   [VisualKind.TOOL_SWORD]: "item/iron_sword",
   [VisualKind.TOOL_PICKAXE]: "item/iron_pickaxe",
   [VisualKind.TOOL_AXE]: "item/iron_axe",

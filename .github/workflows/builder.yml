@@ -26,8 +26,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "21"
           cache: "npm"
+
+      - name: Upgrade npm (workspace protocol support)
+        run: npm i -g npm@11.8.0
+
+      - name: Versions
+        run: |
+          node -v
+          npm -v
 
       - name: Validate schema.json
         run: |

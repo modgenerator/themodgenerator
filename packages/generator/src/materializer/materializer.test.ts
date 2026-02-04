@@ -210,4 +210,22 @@ describe("materializer invariants", () => {
     assert.strictEqual(typeof json.result, "string", "MC 1.21.1 smelting result must be string");
     assert.strictEqual(json.count, 1, "count must be top-level number");
   });
+
+  it("crafting_shapeless recipe emits MC 1.21.1 format: result.item string + result.count", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "a", name: "A" }, { id: "b", name: "B" }],
+      recipes: [
+        { id: "b_from_a", type: "crafting_shapeless", ingredients: [{ id: "a", count: 1 }], result: { id: "b", count: 1 } },
+      ],
+    });
+    const expanded = expandSpecTier1(spec);
+    const recipeFiles = recipeDataFiles(expanded);
+    const craftFile = recipeFiles.find((f) => f.path.includes("b_from_a"));
+    assert.ok(craftFile, "crafting recipe file must exist");
+    const json = JSON.parse(craftFile.contents) as { result?: { item?: string; id?: string; count?: number } };
+    assert.ok(json.result && typeof json.result === "object", "crafting result must be object");
+    assert.strictEqual(typeof (json.result as { item?: string }).item, "string", "MC 1.21.1 crafting result must have result.item string");
+    assert.strictEqual((json.result as { count?: number }).count, 1, "result.count must be number");
+    assert.ok(!("id" in json.result) || json.result.id === undefined, "crafting result must not use result.id");
+  });
 });

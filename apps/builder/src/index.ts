@@ -38,7 +38,7 @@ import {
   type MaterializedFile,
   type CreditBudget,
 } from "@themodgenerator/generator";
-import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene } from "@themodgenerator/validator";
+import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16 } from "./texture-png.js";
 import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
@@ -205,6 +205,33 @@ function validateNoPerceptuallyIdenticalTextures(files: MaterializedFile[], work
         );
       }
     }
+  }
+}
+
+/**
+ * Fail if any generated recipe JSON does not match MC 1.21.1 schema (result.item for crafting, result string for cooking, refs in spec, no self-loop).
+ */
+function validateGeneratedRecipeJsonFromFiles(
+  files: MaterializedFile[],
+  workDir: string,
+  spec: { modId?: string; items?: { id: string }[]; blocks?: { id: string }[] }
+): void {
+  const recipePaths = files.filter((f) => f.path.includes("/data/") && f.path.includes("/recipes/") && f.path.endsWith(".json"));
+  const recipesByPath = new Map<string, unknown>();
+  for (const f of recipePaths) {
+    const fullPath = join(workDir, f.path);
+    if (!existsSync(fullPath)) continue;
+    try {
+      const raw = readFileSync(fullPath, "utf8");
+      const parsed = JSON.parse(raw) as unknown;
+      recipesByPath.set(f.path, parsed);
+    } catch (err) {
+      throw new Error(`Recipe file ${f.path}: invalid JSON or unreadable. ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const result = validateGeneratedRecipeJson(spec as import("@themodgenerator/spec").ModSpecV1, recipesByPath);
+  if (!result.valid) {
+    throw new Error(`Recipe schema validation failed (MC 1.21.1): ${result.errors.join("; ")}`);
   }
 }
 
@@ -522,6 +549,7 @@ async function main(): Promise<void> {
           ? materializeTier1WithPlans(expanded, assets, itemPlans)
           : materializeTier1(expanded, assets);
       writeMaterializedFiles(files, workDir);
+      validateGeneratedRecipeJsonFromFiles(files, workDir, specToUse);
       buildAndWriteTextureManifest(files, workDir);
       validateBlockAsItemAssets(
         files,
@@ -634,8 +662,9 @@ async function main(): Promise<void> {
       phase_updated_at: new Date(),
       artifact_path: `gs://${GCS_BUCKET}/${artifactKey}`,
       log_path: `gs://${GCS_BUCKET}/${logKey}`,
+      spec_json: specToUse,
     });
-    console.log(`[BUILDER] buildId=${buildId} phase=completed status=succeeded`);
+    console.log(`[BUILDER] buildId=${buildId} phase=completed status=succeeded (spec persisted)`);
   } catch (err) {
     console.error(`[BUILDER] buildId=${buildId} FATAL: unhandled exception`, err);
     if (err instanceof Error) {

@@ -22,7 +22,7 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
       type: "minecraft:crafting_shapeless",
       ingredients,
       result: {
-        id: `${modId}:${rec.result.id}`,
+        item: `${modId}:${rec.result.id}`,
         count: rec.result.count ?? 1,
       },
     },

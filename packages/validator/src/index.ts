@@ -103,3 +103,5 @@ export type { ValidateBlockFamiliesResult } from "./validate-block-families.js";
 export { validateBlockFamilies, SUPPORTED_VARIANTS } from "./validate-block-families.js";
 export type { ValidateTextureProfileResult } from "./validate-texture-profile.js";
 export { validateTextureProfile } from "./validate-texture-profile.js";
+export type { ValidateGeneratedRecipeJsonResult } from "./validate-generated-recipe-json.js";
+export { validateGeneratedRecipeJson } from "./validate-generated-recipe-json.js";

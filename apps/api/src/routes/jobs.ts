@@ -204,6 +204,10 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
         recipes: { type: string; inputs: { id: string; count?: number }[]; output: { id: string; count?: number }; outputCount?: number }[];
         decisions?: { kind: string; chosen?: string; alsoSupported?: string[] }[];
       };
+      /** Debug/summary counts for frontend (items, blocks, recipes, blockFamilies). */
+      counts?: { items: number; blocks: number; recipes: number; families: number };
+      /** Final spec when present (blocks + recipes for How to obtain). */
+      spec_json?: unknown;
     } = {
       id: job.id,
       status: apiStatus,
@@ -219,7 +223,10 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     if (job.rejection_reason) {
       out.error = job.rejection_reason;
     }
-    if (job.spec_json && job.prompt) {
+    if (!job.spec_json) {
+      out.instructions = { items: [], blocks: [], recipes: [] };
+      out.counts = { items: 0, blocks: 0, recipes: 0, families: 0 };
+    } else {
       const expanded = expandSpecTier1(job.spec_json);
       const spec = job.spec_json as {
         items?: { id: string; name: string }[];
@@ -238,6 +245,14 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
         })),
         decisions: spec.decisions ?? undefined,
       };
+      out.counts = {
+        items: (spec.items ?? []).length,
+        blocks: (spec.blocks ?? []).length,
+        recipes: (spec.recipes ?? []).length,
+        families: ((spec as { blockFamilies?: unknown[] }).blockFamilies ?? []).length,
+      };
+      out.spec_json = job.spec_json;
+      if (job.prompt) {
       const scopeFromPrompt = expandPromptToScope(job.prompt);
       const scopeFromItems = expanded.items.flatMap((item, i) =>
         expandIntentToScope({
@@ -289,6 +304,7 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       out.capabilitySummary = deriveCapabilitiesFromPlan(allPlans, aggregatedPlan);
       out.expectationContract = buildAggregatedExpectationContract(aggregatedPlan);
       out.safetyDisclosure = buildSafetyDisclosure(aggregatedPlan.primitives);
+      }
     }
     // Contract: when status is "completed", artifactUrl is always set (artifact_path exists and signing succeeded).
     if (apiStatus === "completed") {

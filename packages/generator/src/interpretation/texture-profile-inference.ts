@@ -9,7 +9,13 @@ import type { TextureProfile, TextureMaterialClass } from "@themodgenerator/spec
 
 const CONFIDENCE_THRESHOLD = 0.5;
 
+/** Allowed visual motif keys; use union type for type-safe inference. */
 const MOTIF_OPTIONS = ["holes", "grain", "strata", "veins", "bubbles", "flakes", "rings"] as const;
+export type Motif = (typeof MOTIF_OPTIONS)[number];
+
+function isMotif(s: string): s is Motif {
+  return (MOTIF_OPTIONS as readonly string[]).includes(s);
+}
 
 function inferMaterialClass(materialHint: string): TextureMaterialClass {
   const lower = materialHint.toLowerCase();
@@ -22,8 +28,8 @@ function inferMaterialClass(materialHint: string): TextureMaterialClass {
   return "generic";
 }
 
-function inferVisualMotifs(materialHint: string, physicalTraits: string[]): string[] {
-  const motifs: string[] = [];
+function inferVisualMotifs(materialHint: string, physicalTraits: string[]): Motif[] {
+  const motifs: Motif[] = [];
   const lower = materialHint.toLowerCase();
   const traitSet = new Set(physicalTraits.map((t) => t.toLowerCase()));
   if (traitSet.has("porous") || /\bporous\b/.test(lower)) motifs.push("holes");
@@ -33,7 +39,7 @@ function inferVisualMotifs(materialHint: string, physicalTraits: string[]): stri
   if (traitSet.has("bubbles") || /\bbubble\b/.test(lower)) motifs.push("bubbles");
   if (traitSet.has("flakes")) motifs.push("flakes");
   if (traitSet.has("rings") || /\bring\b/.test(lower)) motifs.push("rings");
-  return [...new Set(motifs)].filter((m) => MOTIF_OPTIONS.includes(m)).slice(0, 2);
+  return [...new Set(motifs)].filter((m): m is Motif => isMotif(m)).slice(0, 2);
 }
 
 /** Infer physical traits and surface style from material hint (generic keyword inference). */

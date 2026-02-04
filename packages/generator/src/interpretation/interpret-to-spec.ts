@@ -4,9 +4,10 @@
  * Rule: Use only the original user request (strip "Clarification Answer:" suffix); never use question phrases.
  */
 
-import type { ModSpecV1 } from "@themodgenerator/spec";
+import type { ModSpecV1, ItemRenderIntent } from "@themodgenerator/spec";
 import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
 import type { ClarificationResponse } from "./clarification.js";
+import { inferItemRender } from "./infer-item-render.js";
 import { clarificationGate } from "./clarification.js";
 import { analyzePromptIntent } from "./prompt-understanding.js";
 import {

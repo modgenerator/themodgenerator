@@ -198,6 +198,12 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
       explanation?: string;
       clarificationStatus?: string | null;
       clarificationQuestion?: string | null;
+      instructions?: {
+        items: { id: string; name: string }[];
+        blocks: { id: string; name: string }[];
+        recipes: { type: string; inputs: { id: string; count?: number }[]; output: { id: string; count?: number }; outputCount?: number }[];
+        decisions?: { kind: string; chosen?: string; alsoSupported?: string[] }[];
+      };
     } = {
       id: job.id,
       status: apiStatus,
@@ -215,6 +221,23 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     }
     if (job.spec_json && job.prompt) {
       const expanded = expandSpecTier1(job.spec_json);
+      const spec = job.spec_json as {
+        items?: { id: string; name: string }[];
+        blocks?: { id: string; name: string }[];
+        recipes?: { id: string; type: string; ingredients?: { id: string; count?: number }[]; result: { id: string; count?: number } }[];
+        decisions?: { kind: string; chosen?: string; alsoSupported?: string[] }[];
+      };
+      out.instructions = {
+        items: (spec.items ?? []).map((i) => ({ id: i.id, name: i.name })),
+        blocks: (spec.blocks ?? []).map((b) => ({ id: b.id, name: b.name })),
+        recipes: (spec.recipes ?? []).map((r) => ({
+          type: r.type,
+          inputs: (r.ingredients ?? []).map((ing) => ({ id: ing.id, count: ing.count })),
+          output: { id: r.result.id, count: r.result.count },
+          outputCount: r.result.count,
+        })),
+        decisions: spec.decisions ?? undefined,
+      };
       const scopeFromPrompt = expandPromptToScope(job.prompt);
       const scopeFromItems = expanded.items.flatMap((item, i) =>
         expandIntentToScope({

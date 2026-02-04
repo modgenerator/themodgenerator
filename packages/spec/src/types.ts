@@ -26,7 +26,15 @@ export type ModSpecV1 = {
   constraintsReport?: ConstraintsReport;
   /** Behavior constraints from interpreter (e.g. no tools/weapons, pickaxe mining). */
   constraints?: ModSpecConstraints;
+  /** Interpreter decisions (e.g. default furnace input when user did not specify). */
+  decisions?: SpecDecision[];
 };
+
+export interface SpecDecision {
+  kind: string;
+  chosen?: string;
+  alsoSupported?: string[];
+}
 
 export interface ModSpecConstraints {
   forbidToolsWeapons?: boolean;

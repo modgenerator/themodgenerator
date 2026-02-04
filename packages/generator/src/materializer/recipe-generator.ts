@@ -31,7 +31,7 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Smelting from spec: first ingredient -> result. No self-loop (ingredient MUST differ from result). */
+/** Smelting from spec: first ingredient -> result. MC 1.21.1: result is STRING, count is top-level. */
 function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) {
@@ -44,10 +44,8 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
     {
       type: "minecraft:smelting",
       ingredient: { item: `${modId}:${ing.id}` },
-      result: {
-        id: `${modId}:${rec.result.id}`,
-        count: rec.result.count ?? 1,
-      },
+      result: `${modId}:${rec.result.id}`,
+      count: rec.result.count ?? 1,
       experience: 0.35,
       cookingtime: 200,
     },
@@ -56,7 +54,7 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
   );
 }
 
-/** Blasting from spec (1.21 format). No self-loop. */
+/** Blasting from spec. MC 1.21.1: result is STRING, count is top-level. No self-loop. */
 function blastingFromSpec(modId: string, rec: ModRecipe): string {
   const ing = rec.ingredients?.[0];
   if (!ing?.id) {
@@ -69,10 +67,8 @@ function blastingFromSpec(modId: string, rec: ModRecipe): string {
     {
       type: "minecraft:blasting",
       ingredient: { item: `${modId}:${ing.id}` },
-      result: {
-        id: `${modId}:${rec.result.id}`,
-        count: rec.result.count ?? 1,
-      },
+      result: `${modId}:${rec.result.id}`,
+      count: rec.result.count ?? 1,
       experience: 0.35,
       cookingtime: 100,
     },

@@ -42,6 +42,7 @@ import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene }
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16 } from "./texture-png.js";
 import { validateTexturePngFile } from "./texture-validation.js";
+import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import {
   expandSpecTier1,
   isModSpecV2,
@@ -425,6 +426,7 @@ async function main(): Promise<void> {
           ? materializeTier1WithPlans(expanded, assets, itemPlans)
           : materializeTier1(expanded, assets);
       writeMaterializedFiles(files, workDir);
+      validateBlockAsItemAssets(files, expanded);
       validateTexturePngs(files, workDir);
       copyFabricWrapperTo(workDir);
       await logPhase(pool, buildId, "compiled");

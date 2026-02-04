@@ -207,6 +207,20 @@ export function assetKeysToFiles(
       path: `${baseAssets}/blockstates/${id}.json`,
       contents: blockstateJson(`${modId}:block/${id}`),
     });
+    // Block-as-item: so block is not purple/black when held. Emit item model + item texture if not already an item.
+    if (!itemIds.includes(id)) {
+      files.push({
+        path: `${baseAssets}/textures/item/${id}.png`,
+        contents: "",
+        placeholderMaterial: material,
+        ...(colorHint && { colorHint }),
+        ...meta,
+      });
+      files.push({
+        path: `${baseAssets}/models/item/${id}.json`,
+        contents: itemModelJson(modId, id),
+      });
+    }
   }
 
   files.push({

@@ -10,7 +10,7 @@ import assert from "node:assert";
 import type { ModSpecV1 } from "@themodgenerator/spec";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { composeTier1Stub } from "../composer-stub.js";
-import { materializeTier1, materializeTier1WithPlans } from "./index.js";
+import { materializeTier1, materializeTier1WithPlans, recipeDataFiles } from "./index.js";
 import { planFromIntent } from "../execution-plan.js";
 
 function minimalTier1Spec(overrides: Partial<ModSpecV1> = {}): ModSpecV1 {
@@ -63,15 +63,17 @@ describe("materializeTier1 golden tests", () => {
       "build.gradle",
       "gradle.properties",
       "settings.gradle",
-      "src/main/java/net/themodgenerator/test_mod/TestMod.java",
+      "src/main/java/net/themodgenerator/test_mod/TestModMod.java",
       "src/main/resources/fabric.mod.json",
       "src/main/resources/test_mod.mixins.json",
       "src/main/resources/assets/test_mod/blockstates/ruby_block.json",
       "src/main/resources/assets/test_mod/lang/en_us.json",
       "src/main/resources/assets/test_mod/models/block/ruby_block.json",
       "src/main/resources/assets/test_mod/models/item/ruby.json",
+      "src/main/resources/assets/test_mod/models/item/ruby_block.json",
       "src/main/resources/assets/test_mod/textures/block/ruby_block.png",
       "src/main/resources/assets/test_mod/textures/item/ruby.png",
+      "src/main/resources/assets/test_mod/textures/item/ruby_block.png",
     ].sort();
     assert.deepStrictEqual(paths, expected, "paths must match expected Tier 1 set");
   });
@@ -85,12 +87,12 @@ describe("materializeTier1 golden tests", () => {
     const paths = files.map((f) => f.path).sort();
     assert.ok(paths.includes("build.gradle"));
     assert.ok(paths.includes("src/main/resources/fabric.mod.json"));
-    assert.ok(paths.includes("src/main/java/net/themodgenerator/test_mod/TestMod.java"));
+    assert.ok(paths.includes("src/main/java/net/themodgenerator/test_mod/TestModMod.java"));
     assert.ok(paths.includes("src/main/resources/assets/test_mod/lang/en_us.json"));
-    const javaFile = files.find((f) => f.path.endsWith("TestMod.java"));
+    const javaFile = files.find((f) => f.path.endsWith("TestModMod.java"));
     assert.ok(javaFile);
-    assert.ok(!javaFile.contents.includes("Registry.register(Registries.ITEM"));
-    assert.ok(!javaFile.contents.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(!javaFile!.contents.includes("Registry.register(Registries.ITEM"));
+    assert.ok(!javaFile!.contents.includes("Registry.register(Registries.BLOCK"));
   });
 
   it("no files outside allowed Tier 1 set", () => {
@@ -132,8 +134,8 @@ describe("materializer invariants", () => {
     const paths = files.map((f) => f.path);
     assert.ok(paths.some((p) => p.includes("textures/item/any_item")), "item texture path must exist");
     assert.ok(paths.some((p) => p.includes("models/item/any_item")), "item model path must exist");
-    const javaFile = files.find((f) => f.path.endsWith("TestMod.java"));
-    assert.ok(javaFile, "TestMod.java must exist");
+    const javaFile = files.find((f) => f.path.endsWith("TestModMod.java"));
+    assert.ok(javaFile, "TestModMod.java must exist");
     assert.ok(javaFile!.contents.includes("any_item") || javaFile!.contents.includes("Registries.ITEM"), "item must be registered");
     const langFile = files.find((f) => f.path.endsWith("en_us.json"));
     assert.ok(langFile, "lang file must exist");
@@ -149,8 +151,8 @@ describe("materializer invariants", () => {
     assert.ok(paths.some((p) => p.includes("textures/block/any_block")), "block texture path must exist");
     assert.ok(paths.some((p) => p.includes("models/block/any_block")), "block model path must exist");
     assert.ok(paths.some((p) => p.includes("blockstates/any_block")), "blockstate path must exist");
-    const javaFile = files.find((f) => f.path.endsWith("TestMod.java"));
-    assert.ok(javaFile, "TestMod.java must exist");
+    const javaFile = files.find((f) => f.path.endsWith("TestModMod.java"));
+    assert.ok(javaFile, "TestModMod.java must exist");
     assert.ok(javaFile!.contents.includes("any_block") || javaFile!.contents.includes("Registries.BLOCK"), "block must be registered");
   });
 
@@ -189,7 +191,25 @@ describe("materializer invariants", () => {
       assert.ok(files.some((f) => f.path.includes(`textures/block/${block.id}`)), `texture for block ${block.id}`);
       assert.ok(files.some((f) => f.path.includes(`models/block/${block.id}`)), `model for block ${block.id}`);
       assert.ok(files.some((f) => f.path.includes(`blockstates/${block.id}`)), `blockstate for block ${block.id}`);
+      assert.ok(files.some((f) => f.path.includes(`models/item/${block.id}.json`)), `block-as-item model for block ${block.id}`);
+      assert.ok(files.some((f) => f.path.includes(`textures/item/${block.id}.png`)), `block-as-item texture for block ${block.id}`);
     }
     assert.ok(files.some((f) => f.path.endsWith("en_us.json")), "lang file must exist");
+  });
+
+  it("smelting recipe emits MC 1.21.1 format: result string + top-level count", () => {
+    const spec = minimalTier1Spec({
+      items: [{ id: "raw", name: "Raw" }, { id: "melted", name: "Melted" }],
+      recipes: [
+        { id: "melted_from_raw", type: "smelting", ingredients: [{ id: "raw", count: 1 }], result: { id: "melted", count: 1 } },
+      ],
+    });
+    const expanded = expandSpecTier1(spec);
+    const recipeFiles = recipeDataFiles(expanded);
+    const smeltingFile = recipeFiles.find((f) => f.path.includes("melted_from_raw"));
+    assert.ok(smeltingFile, "smelting recipe file must exist");
+    const json = JSON.parse(smeltingFile.contents) as { result?: unknown; count?: number };
+    assert.strictEqual(typeof json.result, "string", "MC 1.21.1 smelting result must be string");
+    assert.strictEqual(json.count, 1, "count must be top-level number");
   });
 });

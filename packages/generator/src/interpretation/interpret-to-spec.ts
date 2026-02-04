@@ -219,6 +219,7 @@ export function interpretToSpec(
           result: { id: finalMeltedId, count: 1 },
         },
       ];
+      spec.decisions = [...(spec.decisions ?? []), { kind: "smelting_input_default", chosen: "item" }];
     }
   }
 

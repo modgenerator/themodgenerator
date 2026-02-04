@@ -73,7 +73,6 @@ describe("materializeTier1 golden tests", () => {
       "src/main/resources/assets/test_mod/models/item/ruby_block.json",
       "src/main/resources/assets/test_mod/textures/block/ruby_block.png",
       "src/main/resources/assets/test_mod/textures/item/ruby.png",
-      "src/main/resources/assets/test_mod/textures/item/ruby_block.png",
     ].sort();
     assert.deepStrictEqual(paths, expected, "paths must match expected Tier 1 set");
   });
@@ -192,7 +191,6 @@ describe("materializer invariants", () => {
       assert.ok(files.some((f) => f.path.includes(`models/block/${block.id}`)), `model for block ${block.id}`);
       assert.ok(files.some((f) => f.path.includes(`blockstates/${block.id}`)), `blockstate for block ${block.id}`);
       assert.ok(files.some((f) => f.path.includes(`models/item/${block.id}.json`)), `block-as-item model for block ${block.id}`);
-      assert.ok(files.some((f) => f.path.includes(`textures/item/${block.id}.png`)), `block-as-item texture for block ${block.id}`);
     }
     assert.ok(files.some((f) => f.path.endsWith("en_us.json")), "lang file must exist");
   });

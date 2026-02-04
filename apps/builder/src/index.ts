@@ -17,7 +17,7 @@ console.log("CWD:", process.cwd());
  * Builder CLI entry. Expects env: JOB_ID, DATABASE_URL, GCS_BUCKET.
  * Steps: load job → validate → generate → Gradle build → upload jar + logs → update job.
  */
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +41,7 @@ import {
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16 } from "./texture-png.js";
-import { validateTexturePngFile } from "./texture-validation.js";
+import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
   expandSpecTier1,
@@ -108,18 +108,37 @@ async function logPhase(
 }
 
 /**
+ * Build seed string from path + textureProfile so each entity gets distinct texture.
+ * Uses semantic fields (intent, materialHint, traits, style) so same color ≠ same texture.
+ */
+function textureSeedFromFile(relPath: string, file: MaterializedFile): string {
+  const base = relPath.replace(/\.png$/, "").replace(/\//g, "_");
+  const intent = file.textureIntent ?? "item";
+  const profile = (file as { textureProfile?: { materialHint: string; physicalTraits: string[]; surfaceStyle: string[]; visualMotifs?: string[] } }).textureProfile;
+  if (profile) {
+    const parts = [base, intent, profile.materialHint, profile.physicalTraits.join("-"), profile.surfaceStyle.join("-")];
+    if (profile.visualMotifs?.length) parts.push(profile.visualMotifs.join("-"));
+    return parts.join("_");
+  }
+  return [base, intent].join("_");
+}
+
+/**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
  * .png files with empty contents get a real 32x32 opaque PNG (material color + noise).
  * Non-empty .png contents are treated as base64 when applicable.
  */
 function writeMaterializedFiles(files: MaterializedFile[], workDir: string): void {
   for (const file of files) {
-    const { path: relPath, contents, placeholderMaterial, colorHint } = file;
+    const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt } = file;
     const fullPath = join(workDir, relPath);
     mkdirSync(dirname(fullPath), { recursive: true });
     if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
-      const seed = relPath.replace(/\.png$/, "").replace(/\//g, "_");
+      const seed = textureSeedFromFile(relPath, file);
+      if (process.env.DEBUG && texturePrompt) {
+        console.log(`[BUILDER] texture prompt ${relPath}: ${texturePrompt}`);
+      }
       const pngBuffer = generateOpaquePng16x16({
         material,
         colorHint,
@@ -130,6 +149,83 @@ function writeMaterializedFiles(files: MaterializedFile[], workDir: string): voi
       writeFileSync(fullPath, Buffer.from(contents, "base64"));
     } else {
       writeFileSync(fullPath, contents, "utf8");
+    }
+  }
+}
+
+/** Texture manifest entry for auditing and regression detection. */
+export interface TextureManifestEntry {
+  id: string;
+  intent: "block" | "item" | "processed";
+  materialHint: string;
+  derivedFrom: string | null;
+}
+
+/**
+ * Build texture manifest from materialized PNG files that have textureProfile.
+ * Written to workDir for auditing and regression detection.
+ */
+function buildAndWriteTextureManifest(files: MaterializedFile[], workDir: string): TextureManifestEntry[] {
+  const manifest: TextureManifestEntry[] = [];
+  for (const f of files) {
+    if (!f.path.endsWith(".png") || !(f as { textureProfile?: { intent: string; materialHint: string } }).textureProfile) continue;
+    const profile = (f as { textureProfile: { intent: string; materialHint: string } }).textureProfile;
+    const id = f.path.replace(/.*\/(?:item|block)\//, "").replace(/\.png$/, "");
+    manifest.push({
+      id,
+      intent: profile.intent as "block" | "item" | "processed",
+      materialHint: profile.materialHint,
+      derivedFrom: null,
+    });
+  }
+  const manifestPath = join(workDir, "texture-manifest.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
+  return manifest;
+}
+
+/**
+ * Fail if any two texture PNGs are perceptually identical (same 4x4 average fingerprint).
+ */
+function validateNoPerceptuallyIdenticalTextures(files: MaterializedFile[], workDir: string): void {
+  const pngFiles = files.filter((f) => f.path.endsWith(".png"));
+  const entries: { path: string; fingerprint: string }[] = [];
+  for (const f of pngFiles) {
+    const fullPath = join(workDir, f.path);
+    if (!existsSync(fullPath)) continue;
+    const buf = readFileSync(fullPath);
+    const fp = perceptualFingerprint(buf);
+    if (fp == null) continue;
+    entries.push({ path: f.path, fingerprint: fp });
+  }
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      if (entries[i].fingerprint === entries[j].fingerprint) {
+        throw new Error(
+          `Texture perceptually identical: ${entries[i].path} and ${entries[j].path} have the same visual fingerprint. Block ≠ item ≠ processed; every entity must be visually distinct.`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Fail if any two texture PNGs are byte-identical (no reuse across entities).
+ */
+function validateNoDuplicateTextures(files: MaterializedFile[], workDir: string): void {
+  const pngFiles = files.filter((f) => f.path.endsWith(".png"));
+  const buffers: { path: string; buf: Buffer }[] = [];
+  for (const f of pngFiles) {
+    const fullPath = join(workDir, f.path);
+    if (!existsSync(fullPath)) continue;
+    buffers.push({ path: f.path, buf: readFileSync(fullPath) });
+  }
+  for (let i = 0; i < buffers.length; i++) {
+    for (let j = i + 1; j < buffers.length; j++) {
+      if (buffers[i].buf.length === buffers[j].buf.length && buffers[i].buf.equals(buffers[j].buf)) {
+        throw new Error(
+          `Texture reuse forbidden: ${buffers[i].path} and ${buffers[j].path} are byte-identical. Every entity must have a distinct texture.`
+        );
+      }
     }
   }
 }
@@ -426,12 +522,15 @@ async function main(): Promise<void> {
           ? materializeTier1WithPlans(expanded, assets, itemPlans)
           : materializeTier1(expanded, assets);
       writeMaterializedFiles(files, workDir);
+      buildAndWriteTextureManifest(files, workDir);
       validateBlockAsItemAssets(
         files,
         expanded.spec.blocks?.map((b) => b.id) ?? [],
         expanded.spec.modId
       );
       validateTexturePngs(files, workDir);
+      validateNoDuplicateTextures(files, workDir);
+      validateNoPerceptuallyIdenticalTextures(files, workDir);
       copyFabricWrapperTo(workDir);
       await logPhase(pool, buildId, "compiled");
       console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");

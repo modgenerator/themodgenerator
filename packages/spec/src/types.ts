@@ -28,7 +28,24 @@ export type ModSpecV1 = {
   constraints?: ModSpecConstraints;
   /** Interpreter decisions (e.g. default furnace input when user did not specify). */
   decisions?: SpecDecision[];
+  /** Structured smelting defaults: input type and ids. Materializer uses this only. */
+  smelting?: SmeltingDecision[];
+  /** Block families (variants). Generation driven by variant registry. */
+  blockFamilies?: BlockFamily[];
 };
+
+export interface SmeltingDecision {
+  input: "block" | "item";
+  sourceId: string;
+  resultId: string;
+}
+
+export interface BlockFamily {
+  baseId: string;
+  baseDisplayName: string;
+  familyType: "wood" | "stone" | "metal" | "generic";
+  variants: string[];
+}
 
 export interface SpecDecision {
   kind: string;
@@ -50,6 +67,18 @@ export type FeatureKey =
   | "structure-spawn"
   | "advancement";
 
+/** Semantic intent for texture: block = world, item = inventory, processed = smelted/cooked result. */
+export type TextureIntent = "block" | "item" | "processed";
+
+/** Semantic texture profile for image generation. materialHint from displayName/familyType; traits inferred. */
+export interface TextureProfile {
+  intent: "block" | "item" | "processed";
+  materialHint: string;
+  physicalTraits: string[];
+  surfaceStyle: string[];
+  visualMotifs?: string[];
+}
+
 export interface ModItem {
   id: string;
   name: string;
@@ -57,6 +86,10 @@ export interface ModItem {
   texturePath?: string;
   /** Optional color hint for generated texture (e.g. "yellow", "red"). */
   colorHint?: string;
+  /** Texture semantic: item (default) or processed. Ensures distinct textures. */
+  textureIntent?: TextureIntent;
+  /** Semantic profile for texture generation (intent, material, traits). Required for pipeline. */
+  textureProfile?: TextureProfile;
 }
 
 export interface ModBlock {
@@ -65,6 +98,10 @@ export interface ModBlock {
   texturePath?: string;
   /** Optional color hint for generated texture (e.g. "yellow", "red"). */
   colorHint?: string;
+  /** Texture semantic: block (default). Ensures block texture not reused for items. */
+  textureIntent?: TextureIntent;
+  /** Semantic profile for texture generation (intent, material, traits). Required for pipeline. */
+  textureProfile?: TextureProfile;
 }
 
 export interface ModOre {

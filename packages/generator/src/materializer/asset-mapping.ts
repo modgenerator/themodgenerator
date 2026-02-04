@@ -7,7 +7,7 @@
  */
 
 import type { AssetKey } from "../composer-stub.js";
-import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
+import type { ExpandedSpecTier1, TextureProfile } from "@themodgenerator/spec";
 import type { MaterializedFile } from "./types.js";
 import {
   CANONICAL_MODEL_ITEM,
@@ -56,6 +56,14 @@ function itemModelJson(modId: string, id: string): string {
 `;
 }
 
+/** Block-as-item model: reference block model so held/inventory uses block appearance. No separate item texture. */
+function blockAsItemModelJson(modId: string, blockId: string): string {
+  return `{
+  "parent": "${modId}:block/${blockId}"
+}
+`;
+}
+
 function blockModelJson(modId: string, id: string): string {
   return `{
   "parent": "${CANONICAL_MODEL_BLOCK}",
@@ -79,6 +87,21 @@ function blockstateJson(id: string): string {
 
 function escapeJson(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+/** Build texture generation prompt from textureProfile (for logging and manifest). */
+export function buildTexturePrompt(profile: TextureProfile): string {
+  const parts = [
+    "Pixel-art Minecraft texture, 16x16",
+    `material: ${profile.materialHint}`,
+    `physical traits: ${profile.physicalTraits.join(", ")}`,
+    `surface style: ${profile.surfaceStyle.join(", ")}`,
+  ];
+  if (profile.visualMotifs?.length) {
+    parts.push(`motifs: ${profile.visualMotifs.join(", ")}`);
+  }
+  parts.push("lighting: Minecraft vanilla style", "no photorealism", "tileable");
+  return parts.join(", ");
 }
 
 /** Build merged en_us.json from expanded items and blocks. */
@@ -175,12 +198,15 @@ export function assetKeysToFiles(
   for (const id of itemIds) {
     const material = getCanonicalMaterial(materialForId(expanded, id, "item"));
     const meta = semanticMetadataForTexture(expanded, id, "item");
-    const colorHint = expanded.spec.items?.find((i) => i.id === id)?.colorHint;
+    const itemSpec = expanded.spec.items?.find((i) => i.id === id);
+    const colorHint = itemSpec?.colorHint;
+    const textureIntent = itemSpec?.textureIntent ?? "item";
     files.push({
       path: `${baseAssets}/textures/item/${id}.png`,
       contents: "",
       placeholderMaterial: material,
       ...(colorHint && { colorHint }),
+      textureIntent,
       ...meta,
     });
     files.push({
@@ -191,12 +217,19 @@ export function assetKeysToFiles(
   for (const id of blockIds) {
     const material = getCanonicalMaterial(materialForId(expanded, id, "block"));
     const meta = semanticMetadataForTexture(expanded, id, "block");
-    const colorHint = expanded.spec.blocks?.find((b) => b.id === id)?.colorHint;
+    const blockSpec = expanded.spec.blocks?.find((b) => b.id === id);
+    const colorHint = blockSpec?.colorHint;
+    const textureIntent = blockSpec?.textureIntent ?? "block";
+    const textureProfile = blockSpec?.textureProfile;
+    const texturePrompt = textureProfile ? buildTexturePrompt(textureProfile) : undefined;
     files.push({
       path: `${baseAssets}/textures/block/${id}.png`,
       contents: "",
       placeholderMaterial: material,
       ...(colorHint && { colorHint }),
+      textureIntent,
+      ...(textureProfile && { textureProfile }),
+      ...(texturePrompt && { texturePrompt }),
       ...meta,
     });
     files.push({
@@ -207,18 +240,11 @@ export function assetKeysToFiles(
       path: `${baseAssets}/blockstates/${id}.json`,
       contents: blockstateJson(`${modId}:block/${id}`),
     });
-    // Block-as-item: so block is not purple/black when held. Emit item model + item texture if not already an item.
+    // Block-as-item: item model references block model (no separate item texture; block texture is used).
     if (!itemIds.includes(id)) {
       files.push({
-        path: `${baseAssets}/textures/item/${id}.png`,
-        contents: "",
-        placeholderMaterial: material,
-        ...(colorHint && { colorHint }),
-        ...meta,
-      });
-      files.push({
         path: `${baseAssets}/models/item/${id}.json`,
-        contents: itemModelJson(modId, id),
+        contents: blockAsItemModelJson(modId, id),
       });
     }
   }

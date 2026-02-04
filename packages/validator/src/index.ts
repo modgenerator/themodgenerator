@@ -7,6 +7,8 @@ import { validateSpecConsistency } from "./spec-consistency.js";
 import { validateRecipes } from "./validate-recipes.js";
 import { validateSpecHygiene } from "./validate-spec-hygiene.js";
 import { validateBehaviorCompliance } from "./validate-behavior-compliance.js";
+import { validateBlockFamilies } from "./validate-block-families.js";
+import { validateTextureProfile } from "./validate-texture-profile.js";
 import {
   validateTier1,
   TIER1_NO_FEATURES,
@@ -47,6 +49,20 @@ export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): Va
         return { valid: r.valid, reason: r.errors.join("; ") };
       },
     },
+    {
+      name: "block-families",
+      fn: () => {
+        const r = validateBlockFamilies(spec);
+        return { valid: r.valid, reason: r.errors.join("; ") };
+      },
+    },
+    {
+      name: "texture-profile",
+      fn: () => {
+        const r = validateTextureProfile(spec);
+        return { valid: r.valid, reason: r.errors.join("; ") };
+      },
+    },
     { name: "spec-consistency", fn: () => validateSpecConsistency(spec) },
     { name: "fabric-version", fn: () => validateFabricVersion(spec) },
     { name: "forbidden-mechanics", fn: () => validateForbiddenMechanics(spec, options?.prompt) },
@@ -83,3 +99,7 @@ export type { ValidateSpecHygieneResult } from "./validate-spec-hygiene.js";
 export { validateSpecHygiene } from "./validate-spec-hygiene.js";
 export type { ValidateBehaviorComplianceResult } from "./validate-behavior-compliance.js";
 export { validateBehaviorCompliance } from "./validate-behavior-compliance.js";
+export type { ValidateBlockFamiliesResult } from "./validate-block-families.js";
+export { validateBlockFamilies, SUPPORTED_VARIANTS } from "./validate-block-families.js";
+export type { ValidateTextureProfileResult } from "./validate-texture-profile.js";
+export { validateTextureProfile } from "./validate-texture-profile.js";

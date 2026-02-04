@@ -10,6 +10,7 @@
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import type { AssetKey } from "../composer-stub.js";
 import type { CanonicalMaterial, ArchetypeId, ArchetypeGuarantees } from "../canonical-interpretation.js";
+import type { TextureProfile } from "@themodgenerator/spec";
 
 export interface MaterializedFile {
   path: string;
@@ -18,6 +19,12 @@ export interface MaterializedFile {
   placeholderMaterial?: CanonicalMaterial;
   /** Optional color hint for placeholder texture (e.g. "yellow", "red"). From spec/interpretation. */
   colorHint?: string;
+  /** Semantic intent so block/item/processed get distinct textures. */
+  textureIntent?: "block" | "item" | "processed";
+  /** Semantic profile for texture generation (intent, materialHint, traits). Drives prompt and seed. */
+  textureProfile?: TextureProfile;
+  /** Constructed texture prompt from textureProfile for logging/manifest. */
+  texturePrompt?: string;
   /** Expressive archetype for this asset (fallback only). Set only when user has not provided asset. */
   archetype?: ArchetypeId;
   /** Hint: emissive. From archetype definition. */

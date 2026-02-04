@@ -164,6 +164,42 @@ const MIN_WIDTH = 16;
 const MIN_HEIGHT = 16;
 
 /**
+ * Compute a perceptual fingerprint (4x4 grid of average RGB) for duplicate detection.
+ * Two textures with the same fingerprint are considered perceptually identical.
+ * Returns a string suitable for comparison; decodes PNG internally.
+ */
+export function perceptualFingerprint(buffer: Buffer): string | null {
+  const decoded = decodePngRaw(buffer);
+  if (!decoded || (decoded.width < 16 || decoded.height < 16)) return null;
+  const { width, height, colorType, raw } = decoded;
+  const rowSize = colorType === 6 ? 1 + width * 4 : 1 + width * 3;
+  const bpp = colorType === 6 ? 4 : 3;
+  const grid = 4;
+  const cellW = Math.floor(width / grid);
+  const cellH = Math.floor(height / grid);
+  const parts: number[] = [];
+  for (let gy = 0; gy < grid; gy++) {
+    for (let gx = 0; gx < grid; gx++) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let y = gy * cellH; y < (gy + 1) * cellH && y < height; y++) {
+        const rowStart = y * rowSize + 1;
+        for (let x = gx * cellW; x < (gx + 1) * cellW && x < width; x++) {
+          const i = rowStart + x * bpp;
+          r += raw[i];
+          g += raw[i + 1];
+          b += raw[i + 2];
+          n++;
+        }
+      }
+      if (n > 0) {
+        parts.push(Math.round(r / n), Math.round(g / n), Math.round(b / n));
+      }
+    }
+  }
+  return parts.join(",");
+}
+
+/**
  * Validate a PNG buffer: decodable, dimensions >= 16x16, not fully transparent, has pixel variation.
  * Returns result with ok and optional details for logging.
  */

@@ -9,6 +9,10 @@ import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/
 import type { ClarificationResponse } from "./clarification.js";
 import { clarificationGate } from "./clarification.js";
 import { analyzePromptIntent } from "./prompt-understanding.js";
+import {
+  inferTextureProfile,
+  getTextureProfileConfidenceThreshold,
+} from "./texture-profile-inference.js";
 
 const MAX_ID_LEN = 32;
 const MAX_DISPLAY_NAME_LEN = 48;
@@ -174,11 +178,44 @@ export function interpretToSpec(
     colorHint = simpleColorFromPrompt(answerPart);
   }
 
+  const threshold = getTextureProfileConfidenceThreshold();
+
+  function attachTextureProfile<T extends { id: string; name: string; colorHint?: string }>(
+    displayName: string,
+    intent: "block" | "item" | "processed",
+    entity: T,
+    familyType?: string
+  ): { entity: T & { textureIntent: "block" | "item" | "processed"; textureProfile: import("@themodgenerator/spec").TextureProfile }; clarification?: ClarificationResponse } {
+    const { profile, confidence } = inferTextureProfile(displayName, intent, { familyType });
+    if (confidence < threshold) {
+      return {
+        entity: entity as T & { textureIntent: "block" | "item" | "processed"; textureProfile: import("@themodgenerator/spec").TextureProfile },
+        clarification: {
+          type: "request_clarification",
+          message: `Texture inference confidence too low (${confidence.toFixed(2)} < ${threshold}): cannot infer texture profile for "${displayName}". Use a more descriptive name (e.g. "Cheese Block", "Ocean Wood").`,
+        },
+      };
+    }
+    return { entity: { ...entity, textureIntent: intent, textureProfile: profile } };
+  }
+
   if (isBlock) {
-    const blockEntry = { id: finalBlockId, name: displayName || "Block", ...(colorHint && { colorHint }) };
-    spec.blocks = [blockEntry];
+    const blockResult = attachTextureProfile(displayName || "Block", "block", {
+      id: finalBlockId,
+      name: displayName || "Block",
+      ...(colorHint && { colorHint }),
+    });
+    if (blockResult.clarification) return blockResult.clarification;
+    spec.blocks = [blockResult.entity];
     if (craftCount > 0) {
-      spec.items = [{ id: finalBaseId, name: displayName.replace(/\s+Block$/i, "").trim() || displayName || "Item", ...(colorHint && { colorHint }) }];
+      const itemName = displayName.replace(/\s+Block$/i, "").trim() || displayName || "Item";
+      const itemResult = attachTextureProfile(itemName, "item", {
+        id: finalBaseId,
+        name: itemName,
+        ...(colorHint && { colorHint }),
+      });
+      if (itemResult.clarification) return itemResult.clarification;
+      spec.items = [itemResult.entity];
       spec.recipes = [
         {
           id: `${finalBlockId}_from_${finalBaseId}`,
@@ -192,8 +229,15 @@ export function interpretToSpec(
       const meltedSlug = slugFromDisplayName("Melted " + (displayName.replace(/\s+Block$/i, "").trim() || displayName), false);
       const meltedId = ("melted_" + (finalBaseId === "custom" ? "block" : finalBaseId)).slice(0, MAX_ID_LEN);
       const finalMeltedId = /^[a-z][a-z0-9_]*$/.test(meltedSlug) ? meltedSlug.slice(0, MAX_ID_LEN) : meltedId;
+      const meltedName = "Melted " + (displayName.replace(/\s+Block$/i, "").trim() || displayName);
       if (!spec.items?.some((i) => i.id === finalMeltedId)) {
-        spec.items = [...(spec.items ?? []), { id: finalMeltedId, name: "Melted " + (displayName.replace(/\s+Block$/i, "").trim() || displayName), ...(colorHint && { colorHint }) }];
+        const meltedResult = attachTextureProfile(meltedName, "processed", {
+          id: finalMeltedId,
+          name: meltedName,
+          ...(colorHint && { colorHint }),
+        });
+        if (meltedResult.clarification) return meltedResult.clarification;
+        spec.items = [...(spec.items ?? []), meltedResult.entity];
       }
       spec.recipes = [
         ...(spec.recipes ?? []),
@@ -204,13 +248,26 @@ export function interpretToSpec(
           result: { id: finalMeltedId, count: 1 },
         },
       ];
+      spec.smelting = [...(spec.smelting ?? []), { input: "block", sourceId: finalBlockId, resultId: finalMeltedId }];
     }
   } else {
-    spec.items = [{ id: finalBaseId, name: displayName || "Item", ...(colorHint && { colorHint }) }];
+    const itemResult = attachTextureProfile(displayName || "Item", "item", {
+      id: finalBaseId,
+      name: displayName || "Item",
+      ...(colorHint && { colorHint }),
+    });
+    if (itemResult.clarification) return itemResult.clarification;
+    spec.items = [itemResult.entity];
     if (wantsSmelt) {
       const meltedId = ("melted_" + finalBaseId).slice(0, MAX_ID_LEN);
       const finalMeltedId = /^[a-z][a-z0-9_]*$/.test(meltedId) ? meltedId : "melted_" + finalBaseId.slice(0, MAX_ID_LEN - 7);
-      spec.items.push({ id: finalMeltedId, name: "Melted " + (displayName || "Item"), ...(colorHint && { colorHint }) });
+      const meltedResult = attachTextureProfile("Melted " + (displayName || "Item"), "processed", {
+        id: finalMeltedId,
+        name: "Melted " + (displayName || "Item"),
+        ...(colorHint && { colorHint }),
+      });
+      if (meltedResult.clarification) return meltedResult.clarification;
+      (spec.items ??= []).push(meltedResult.entity);
       spec.recipes = [
         {
           id: `${finalMeltedId}_from_item`,
@@ -220,6 +277,7 @@ export function interpretToSpec(
         },
       ];
       spec.decisions = [...(spec.decisions ?? []), { kind: "smelting_input_default", chosen: "item" }];
+      spec.smelting = [...(spec.smelting ?? []), { input: "item", sourceId: finalBaseId, resultId: finalMeltedId }];
     }
   }
 

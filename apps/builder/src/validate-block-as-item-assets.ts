@@ -1,7 +1,8 @@
 /**
- * Fail the job if any block is missing block-as-item assets (model + texture).
+ * Fail the job if any block is missing block-as-item model.
  * Required: assets/<modId>/models/item/<blockId>.json
- * And either: assets/<modId>/textures/item/<blockId>.png in files, or the item model's layer0 references an existing texture path.
+ * Block-as-item model MUST reference block model: { "parent": "<modId>:block/<blockId>" } (no separate texture).
+ * If model uses layer0 instead, the referenced texture file must exist.
  */
 
 import type { MaterializedFile } from "@themodgenerator/generator";
@@ -16,6 +17,9 @@ export function validateBlockAsItemAssets(
   const filePaths = new Set(files.map((f) => f.path));
   const texturePaths = new Set(
     files.filter((f) => f.path.includes("textures/item/") && f.path.endsWith(".png")).map((f) => f.path)
+  );
+  const blockModelPaths = new Set(
+    files.filter((f) => f.path.includes("models/block/") && f.path.endsWith(".json")).map((f) => f.path)
   );
 
   for (const blockId of blockIds) {
@@ -32,7 +36,23 @@ export function validateBlockAsItemAssets(
       );
     }
     try {
-      const json = JSON.parse(modelFile.contents) as { textures?: { layer0?: string } };
+      const json = JSON.parse(modelFile.contents) as { parent?: string; textures?: { layer0?: string } };
+      const parent = json.parent;
+      if (typeof parent === "string") {
+        const expectedParent = `${modId}:block/${blockId}`;
+        if (parent !== expectedParent) {
+          throw new Error(
+            `Block-as-item validation failed: blockId "${blockId}" item model must have "parent": "${expectedParent}" (got "${parent}")`
+          );
+        }
+        const expectedBlockModel = `${ASSETS_PREFIX}/${modId}/models/block/${blockId}.json`;
+        if (!blockModelPaths.has(expectedBlockModel)) {
+          throw new Error(
+            `Block-as-item validation failed: blockId "${blockId}" references block model but file is missing: ${expectedBlockModel}`
+          );
+        }
+        continue;
+      }
       const layer0 = json.textures?.layer0;
       if (typeof layer0 === "string") {
         const match = /^[^:]+:item\/(.+)$/.exec(layer0);

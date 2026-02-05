@@ -25,13 +25,14 @@ export interface ValidationReport {
 }
 
 /** Run all validation gates. Tier 1 gate runs first. First failure returns immediately. */
-export function validateSpec(spec: ModSpecV1, options?: { prompt?: string }): ValidationReport {
+export function validateSpec(spec: ModSpecV1, options?: { prompt?: string; specForRecipeValidation?: ModSpecV1 }): ValidationReport {
+  const recipeSpec = options?.specForRecipeValidation ?? spec;
   const gates = [
     { name: "tier1", fn: () => validateTier1(spec) },
     {
       name: "recipes",
       fn: () => {
-        const r = validateRecipes(spec);
+        const r = validateRecipes(recipeSpec, { allowVanillaIngredients: true });
         return { valid: r.valid, reason: r.errors.join("; ") };
       },
     },

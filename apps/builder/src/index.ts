@@ -38,7 +38,7 @@ import {
   type MaterializedFile,
   type CreditBudget,
 } from "@themodgenerator/generator";
-import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
+import { validateSpec, validateModSpecV2, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
 import { logVanillaAssetsPackAtStartup } from "./vanilla-asset-source.js";
@@ -194,7 +194,9 @@ function validateGeneratedRecipeJsonFromFiles(
       throw new Error(`Recipe file ${f.path}: invalid JSON or unreadable. ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  const result = validateGeneratedRecipeJson(spec as import("@themodgenerator/spec").ModSpecV1, recipesByPath);
+  const result = validateGeneratedRecipeJson(spec as import("@themodgenerator/spec").ModSpecV1, recipesByPath, {
+    allowVanillaIngredients: true,
+  });
   if (!result.valid) {
     throw new Error(`Recipe schema validation failed (MC 1.21.1): ${result.errors.join("; ")}`);
   }
@@ -378,6 +380,7 @@ async function main(): Promise<void> {
     }
     await logPhase(pool, buildId, "spec_generated");
 
+    let expanded: import("@themodgenerator/spec").ExpandedSpecTier1;
     if (isModSpecV2(specToUse)) {
       const expandedV2 = expandModSpecV2(specToUse);
       await logPhase(pool, buildId, "rules_expanded");
@@ -395,26 +398,17 @@ async function main(): Promise<void> {
       }
       await logPhase(pool, buildId, "validated");
       specToUse = expandedModSpecV2ToV1(expandedV2);
+      expanded = expandSpecTier1(specToUse);
     } else {
-      const validation = validateSpec(specToUse, { prompt: job.prompt });
+      expanded = expandSpecTier1(specToUse);
+      const specForRecipeValidation = { ...expanded.spec, items: expanded.items, blocks: expanded.blocks };
+      const validation = validateSpec(specToUse, { prompt: job.prompt, specForRecipeValidation });
       if (!validation.valid) {
         const msg = [validation.gate, validation.reason].filter(Boolean).join(": ");
         console.error(`[BUILDER] buildId=${buildId} Spec validation failed: ${msg}`);
         await updateJob(pool, JOB_ID, {
           status: "failed",
           rejection_reason: `Validation (${validation.gate}): ${validation.reason ?? "invalid spec"}`,
-          current_phase: "failed",
-          phase_updated_at: new Date(),
-        });
-        process.exit(1);
-      }
-      const recipeCheck = validateRecipes(specToUse);
-      if (!recipeCheck.valid) {
-        const msg = recipeCheck.errors.join("; ");
-        console.error(`[BUILDER] buildId=${buildId} Recipe validation failed: ${msg}`);
-        await updateJob(pool, JOB_ID, {
-          status: "failed",
-          rejection_reason: `Recipe validation: ${msg}`,
           current_phase: "failed",
           phase_updated_at: new Date(),
         });
@@ -435,7 +429,6 @@ async function main(): Promise<void> {
     }
 
     console.log(`[BUILDER] buildId=${buildId} Tier 1 materialized project`);
-    const expanded = expandSpecTier1(specToUse);
       await logPhase(pool, buildId, "world_interactions");
       const assets = composeTier1Stub(expanded.descriptors);
       const prompt = job.prompt ?? "";
@@ -516,7 +509,7 @@ async function main(): Promise<void> {
       await writeMaterializedFiles(files, workDir, {
         mcVersion: specToUse.minecraftVersion ?? "1.21.1",
       });
-      validateGeneratedRecipeJsonFromFiles(files, workDir, specToUse);
+      validateGeneratedRecipeJsonFromFiles(files, workDir, { ...expanded.spec, items: expanded.items, blocks: expanded.blocks });
       buildAndWriteTextureManifest(files, workDir);
       validateBlockAsItemAssets(files, expanded.blocks.map((b) => b.id), expanded.spec.modId);
       validateTexturePngs(files, workDir);

@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@themodgenerator/spec": "*",
     "pg": "^8.11.3"
   },
   "devDependencies": {

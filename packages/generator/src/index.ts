@@ -62,6 +62,7 @@ export type {
 } from "./interpretation/index.js";
 export type { UserIntent, ExecutionPlan, ExecutionPlanTextureData } from "./execution-plan.js";
 export { planFromIntent, calculateCredits, intentToSystems } from "./execution-plan.js";
+export { planToModSpec } from "./planner/index.js";
 export type { SystemUnit, SystemDefinition, PrimitiveId } from "./system-units.js";
 export { SYSTEM_REGISTRY, primitivesFromSystems } from "./system-units.js";
 export type { ExpectationContract } from "./expectation-contract.js";

@@ -72,6 +72,28 @@ export interface ModSpecConstraints {
   noRecipes?: boolean;
 }
 
+/**
+ * Planner output (e.g. from GPT): version-agnostic, no MC file paths.
+ * planToModSpec maps this to ModSpecV1 deterministically.
+ */
+export interface PlanSpec {
+  intent: string;
+  entities: {
+    ores?: string[];
+    woodTypes?: string[];
+    items?: string[];
+    blocks?: string[];
+  };
+  impliedSystems: string[];
+  constraints: {
+    noBlocks?: boolean;
+    noRecipes?: boolean;
+    mcVersion?: string;
+  };
+  defaultsApplied: string[];
+  followupQuestions?: string[];
+}
+
 export type FeatureKey =
   | "hello-world"
   | "ore"

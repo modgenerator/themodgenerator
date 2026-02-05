@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import type { ModSpecV1 } from "@themodgenerator/spec";
+import type { ModSpecV1, PlanSpec } from "@themodgenerator/spec";
 
 export type JobStatus =
   | "created"
@@ -21,6 +21,7 @@ export interface JobRow {
   status: JobStatus;
   rejection_reason: string | null;
   spec_json: ModSpecV1 | null;
+  plan_json: PlanSpec | null;
   artifact_path: string | null;
   log_path: string | null;
   created_at: Date;
@@ -44,6 +45,7 @@ export interface InsertJobInput {
   status?: JobStatus;
   rejection_reason?: string | null;
   spec_json?: ModSpecV1 | null;
+  plan_json?: PlanSpec | null;
   artifact_path?: string | null;
   log_path?: string | null;
 }
@@ -52,6 +54,7 @@ export interface UpdateJobInput {
   status?: JobStatus;
   rejection_reason?: string | null;
   spec_json?: ModSpecV1 | null;
+  plan_json?: PlanSpec | null;
   artifact_path?: string | null;
   log_path?: string | null;
   started_at?: Date | null;
@@ -71,10 +74,10 @@ export async function insertJob(
   const res = await pool.query<Record<string, unknown>>(
     `INSERT INTO jobs (
       id, user_id, parent_id, prompt, mode, status, rejection_reason,
-      spec_json, artifact_path, log_path
+      spec_json, plan_json, artifact_path, log_path
     ) VALUES (
       COALESCE($1, gen_random_uuid()), $2, $3, $4, COALESCE($5, 'test'), $6::job_status,
-      $7, $8, $9, $10
+      $7, $8, $9, $10, $11
     )
     RETURNING *`,
     [
@@ -86,6 +89,7 @@ export async function insertJob(
       input.status ?? "created",
       input.rejection_reason ?? null,
       input.spec_json ? JSON.stringify(input.spec_json) : null,
+      input.plan_json ? JSON.stringify(input.plan_json) : null,
       input.artifact_path ?? null,
       input.log_path ?? null,
     ]
@@ -187,6 +191,7 @@ function mapRow(r: Record<string, unknown>): JobRow {
     status: r.status as JobStatus,
     rejection_reason: r.rejection_reason as string | null,
     spec_json: r.spec_json as ModSpecV1 | null,
+    plan_json: (r.plan_json as PlanSpec | null) ?? null,
     artifact_path: r.artifact_path as string | null,
     log_path: r.log_path as string | null,
     created_at: r.created_at as Date,

@@ -1,6 +1,7 @@
 export type {
   ModSpecV1,
   ModSpecConstraints,
+  PlanSpec,
   SpecDecision,
   SmeltingDecision,
   BlockFamily,

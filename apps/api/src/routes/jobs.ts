@@ -14,8 +14,9 @@ import {
 } from "@themodgenerator/generator";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { validateSpec } from "@themodgenerator/validator";
-import { interpretToSpec } from "@themodgenerator/generator";
+import { interpretToSpec, planToModSpec } from "@themodgenerator/generator";
 import { sanitizeSpec, isBlockPrompt } from "../services/planner.js";
+import { planFromPrompt } from "../services/openai-planner.js";
 import { triggerBuilderJob } from "../services/job-trigger.js";
 
 const DEFAULT_BUDGET: CreditBudget = 30;
@@ -64,31 +65,45 @@ export const jobRoutes: FastifyPluginAsync = async (app) => {
     });
     const buildId = job.id;
     const blockOnly = isBlockPrompt(prompt);
-    const interpretResult = interpretToSpec(prompt, { blockOnly });
-    if (interpretResult.type === "request_clarification") {
-      await updateJob(pool, job.id, {
-        clarification_status: "asked",
-        clarification_question: interpretResult.message,
-      });
-      console.log(`[JOBS] jobId=${buildId} clarification_status=none->asked (conflict; blockOnly=${blockOnly})`);
-      return reply.status(200).send({
-        jobId: job.id,
-        needsClarification: true,
-        message: interpretResult.message,
-        examples: interpretResult.examples,
-      });
+    let spec: import("@themodgenerator/spec").ModSpecV1;
+    let planJson: import("@themodgenerator/spec").PlanSpec | null = null;
+    try {
+      const planResult = await planFromPrompt(prompt, { jobId: buildId });
+      planJson = planResult.plan;
+      spec = sanitizeSpec(planToModSpec(planResult.plan));
+      console.log(`[JOBS] jobId=${buildId} spec from planner (plan_json stored)`);
+    } catch (plannerErr) {
+      console.warn(`[JOBS] jobId=${buildId} planner failed, falling back to interpretToSpec:`, (plannerErr as Error).message);
+      const interpretResult = interpretToSpec(prompt, { blockOnly });
+      if (interpretResult.type === "request_clarification") {
+        await updateJob(pool, job.id, {
+          clarification_status: "asked",
+          clarification_question: interpretResult.message,
+        });
+        console.log(`[JOBS] jobId=${buildId} clarification_status=none->asked (conflict; blockOnly=${blockOnly})`);
+        return reply.status(200).send({
+          jobId: job.id,
+          needsClarification: true,
+          message: interpretResult.message,
+          examples: interpretResult.examples,
+        });
+      }
+      if (!("spec" in interpretResult)) {
+        return reply.status(500).send({ error: "Interpreter did not return a spec" });
+      }
+      spec = sanitizeSpec(interpretResult.spec);
+      console.log(`[JOBS] jobId=${buildId} clarification_status=skipped spec from interpreter (fallback)`);
     }
-    if (!("spec" in interpretResult)) {
-      return reply.status(500).send({ error: "Interpreter did not return a spec" });
-    }
-    const spec = sanitizeSpec(interpretResult.spec);
     try {
       validateSpec(spec, { prompt });
     } catch {
       // non-blocking
     }
-    await updateJob(pool, job.id, { spec_json: spec, clarification_status: "skipped" });
-    console.log(`[JOBS] jobId=${buildId} clarification_status=skipped spec from interpreter`);
+    await updateJob(pool, job.id, {
+      spec_json: spec,
+      ...(planJson && { plan_json: planJson }),
+      clarification_status: "skipped",
+    });
     const expanded = expandSpecTier1(spec);
     const scopeFromPrompt = expandPromptToScope(prompt);
     const scopeFromItems = expanded.items.flatMap((item, i) =>

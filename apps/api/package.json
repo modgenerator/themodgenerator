@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "npm run build && node --test dist/services/openai-planner.test.js"
   },
   "dependencies": {
     "@themodgenerator/db": "*",
@@ -16,6 +17,7 @@
     "@themodgenerator/spec": "*",
     "@themodgenerator/validator": "*",
     "fastify": "^4.28.1",
+    "openai": "^4.77.0",
     "@fastify/cors": "^9.0.1",
     "google-auth-library": "^9.14.0"
   },

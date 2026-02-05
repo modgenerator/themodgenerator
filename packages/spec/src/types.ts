@@ -68,6 +68,8 @@ export interface SpecDecision {
 export interface ModSpecConstraints {
   forbidToolsWeapons?: boolean;
   requirePickaxeMining?: boolean;
+  /** When true, wood expansion still creates blocks/items but does not add wood recipes. */
+  noRecipes?: boolean;
 }
 
 export type FeatureKey =

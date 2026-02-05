@@ -8,6 +8,7 @@ import type { ModSpecV1, ItemRenderIntent } from "@themodgenerator/spec";
 import { SUPPORTED_MINECRAFT_VERSION, SUPPORTED_LOADER } from "@themodgenerator/spec";
 import type { ClarificationResponse } from "./clarification.js";
 import { extractEntityList } from "./entity-list-extractor.js";
+import { extractWoodTypes } from "./wood-type-directive-extractor.js";
 import { extractCookingDirectives, parseCookingPhrases } from "./cooking-directive-extractor.js";
 import { inferItemRender } from "./infer-item-render.js";
 import { clarificationGate } from "./clarification.js";
@@ -154,6 +155,7 @@ export function interpretToSpec(
   const requirePickaxeMining = /\bmineable\s+with\s+(a\s+)?pickaxe\b|\bpickaxe\s+min(eable|ing)\b/.test(lowerForConstraints);
 
   const entityExtraction = extractEntityList(originalOnly);
+  const woodExtraction = extractWoodTypes(originalOnly);
 
   const spec: ModSpecV1 = {
     schemaVersion: 1,
@@ -165,10 +167,11 @@ export function interpretToSpec(
     items: [],
     blocks: [],
     recipes: [],
-    ...((forbidToolsWeapons || requirePickaxeMining) && {
+    ...((forbidToolsWeapons || requirePickaxeMining || entityExtraction.noRecipes) && {
       constraints: {
         ...(forbidToolsWeapons && { forbidToolsWeapons: true }),
         ...(requirePickaxeMining && { requirePickaxeMining: true }),
+        ...(entityExtraction.noRecipes && { noRecipes: true }),
       },
     }),
   };
@@ -211,11 +214,17 @@ export function interpretToSpec(
   }
 
   if (entityExtraction.entities.length > 0) {
+    if (woodExtraction.matched && woodExtraction.woodTypes.length > 0 && !entityExtraction.noBlocks) {
+      spec.woodTypes = woodExtraction.woodTypes;
+    }
+    const woodTypeIds = new Set((spec.woodTypes ?? []).map((w) => w.id));
     for (const e of entityExtraction.entities) {
       const displayName = e.displayName.trim() || "Item";
       const isBlockEntity = e.type === "block" && !entityExtraction.noBlocks;
       const rawId = slugFromDisplayName(displayName, isBlockEntity);
       const finalId = (/^[a-z][a-z0-9_]*$/.test(rawId) && rawId.length <= MAX_ID_LEN ? rawId : shortIdFromConcepts([displayName.toLowerCase().replace(/[^a-z0-9]/g, "_")], isBlockEntity)).slice(0, MAX_ID_LEN);
+      const baseId = isBlockEntity ? finalId.replace(/_block$/, "") : finalId;
+      if (woodTypeIds.has(baseId)) continue;
       if (isBlockEntity) {
         const blockResult = attachTextureProfile(displayName, "block", { id: finalId, name: displayName, ...(colorHint && { colorHint }) });
         if (blockResult.clarification) return blockResult.clarification;
@@ -246,6 +255,16 @@ export function interpretToSpec(
 
   const noBlocks = entityExtraction.noBlocks;
   const noRecipes = entityExtraction.noRecipes;
+
+  // Wood-type-only prompt: set spec.woodTypes and do NOT add a standalone item (maple bug fix).
+  if (woodExtraction.matched && woodExtraction.woodTypes.length > 0 && entityExtraction.entities.length === 0) {
+    if (entityExtraction.noBlocks) {
+      return { type: "proceed", spec };
+    }
+    spec.woodTypes = woodExtraction.woodTypes;
+    (spec as { modName?: string }).modName = `${woodExtraction.woodTypes[0].displayName} Mod`;
+    return { type: "proceed", spec };
+  }
 
   if (entityExtraction.entities.length === 0 && parseCookingPhrases(originalOnly).length > 0) {
     const cooking = extractCookingDirectives(originalOnly, spec, { noRecipes });

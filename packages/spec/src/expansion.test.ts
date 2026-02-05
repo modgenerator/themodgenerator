@@ -87,4 +87,46 @@ describe("expandSpecTier1", () => {
     assert.ok(recipeIds.includes("maple_boat"));
     assert.ok(recipeIds.includes("maple_chest_boat"));
   });
+
+  it("woodTypes expansion yields full maple_* family (log, wood, stripped, planks, stairs, slab, fence, door, boat, etc.)", () => {
+    const spec = minimalSpec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const allIds = [...expanded.items.map((i) => i.id), ...expanded.blocks.map((b) => b.id)];
+    const expected = [
+      "maple_log",
+      "maple_wood",
+      "maple_stripped_log",
+      "maple_stripped_wood",
+      "maple_planks",
+      "maple_stairs",
+      "maple_slab",
+      "maple_fence",
+      "maple_fence_gate",
+      "maple_door",
+      "maple_trapdoor",
+      "maple_button",
+      "maple_pressure_plate",
+      "maple_sign",
+      "maple_hanging_sign",
+      "maple_boat",
+      "maple_chest_boat",
+    ];
+    for (const id of expected) {
+      assert.ok(allIds.includes(id), `expansion must include ${id}`);
+    }
+  });
+
+  it("woodTypes with constraints.noRecipes: blocks/items created but no wood recipes added", () => {
+    const spec = minimalSpec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+      constraints: { noRecipes: true },
+    });
+    const expanded = expandSpecTier1(spec);
+    assert.ok(expanded.items.some((i) => i.id.startsWith("maple_")), "items still include maple_*");
+    assert.ok(expanded.blocks.some((b) => b.id.startsWith("maple_")), "blocks still include maple_*");
+    const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
+    assert.strictEqual(recipeIds.filter((id) => id.startsWith("maple_")).length, 0, "no wood recipes when noRecipes");
+  });
 });

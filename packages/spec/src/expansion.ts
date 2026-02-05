@@ -69,8 +69,9 @@ export function expandSpecTier1(spec: ModSpecV1): ExpandedSpecTier1 {
   ];
 
   const woodRecipes = woodRecipesFromWoodTypes(spec.woodTypes ?? []);
+  const skipWoodRecipes = (spec.constraints as { noRecipes?: boolean } | undefined)?.noRecipes === true;
   const specWithRecipes =
-    woodRecipes.length > 0
+    woodRecipes.length > 0 && !skipWoodRecipes
       ? { ...spec, recipes: [...(spec.recipes ?? []), ...woodRecipes] }
       : spec;
 

@@ -144,4 +144,25 @@ describe("interpretToSpec", () => {
     assert.strictEqual(spec.recipes![0].ingredients?.[0]?.id, "raw_tin");
     assert.strictEqual(spec.recipes![0].result.id, "tin_ingot");
   });
+
+  it("Add a new wood type called Maple. → spec.woodTypes has maple, spec.items does NOT have maple item", () => {
+    const result = interpretToSpec("Add a new wood type called Maple.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.ok(Array.isArray(spec.woodTypes) && spec.woodTypes!.length >= 1, "must have woodTypes");
+    const maple = spec.woodTypes!.find((w: { id: string }) => w.id === "maple");
+    assert.ok(maple, "woodTypes must contain maple");
+    assert.strictEqual(maple!.displayName, "Maple", "displayName must be Maple");
+    assert.ok(!spec.items?.some((i: { id: string }) => i.id === "maple"), "must NOT have a standalone item with id maple (wood type only)");
+  });
+
+  it("Add a new wood type called Maple. No blocks. → no woodTypes, no maple item", () => {
+    const result = interpretToSpec("Add a new wood type called Maple. No blocks.");
+    assert.strictEqual(result.type, "proceed");
+    if (result.type !== "proceed" || !("spec" in result)) return;
+    const spec = result.spec;
+    assert.strictEqual(spec.woodTypes?.length ?? 0, 0, "no blocks => do not add woodTypes");
+    assert.ok(!spec.items?.some((i: { id: string }) => i.id === "maple"), "must NOT add maple as item");
+  });
 });

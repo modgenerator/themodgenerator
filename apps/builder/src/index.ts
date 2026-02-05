@@ -40,9 +40,9 @@ import {
 } from "@themodgenerator/generator";
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
-import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
-import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba, applyPerEntityVariation, applySemanticColorTheme } from "./texture-validation.js";
-import { getVanillaTextureBuffer, logVanillaAssetsPackAtStartup, type VanillaAssetsSource } from "./vanilla-asset-source.js";
+import { validateTexturePngFile, perceptualFingerprint } from "./texture-validation.js";
+import { logVanillaAssetsPackAtStartup } from "./vanilla-asset-source.js";
+import { writeMaterializedFiles, getTextureMetaByPath } from "./write-materialized-files.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
   expandSpecTier1,
@@ -112,127 +112,8 @@ async function logPhase(
   await updateJob(pool, buildId, { current_phase: phase, phase_updated_at: now });
 }
 
-/**
- * Build seed string from path + textureProfile so each entity gets distinct texture.
- * Uses semantic fields (intent, materialHint, traits, style) so same color ≠ same texture.
- */
-function textureSeedFromFile(relPath: string, file: MaterializedFile): string {
-  const base = relPath.replace(/\.png$/, "").replace(/\//g, "_");
-  const intent = file.textureIntent ?? "item";
-  const profile = (file as { textureProfile?: { materialHint: string; physicalTraits: string[]; surfaceStyle: string[]; visualMotifs?: string[] } }).textureProfile;
-  if (profile) {
-    const parts = [base, intent, profile.materialHint, profile.physicalTraits.join("-"), profile.surfaceStyle.join("-")];
-    if (profile.visualMotifs?.length) parts.push(profile.visualMotifs.join("-"));
-    return parts.join("_");
-  }
-  return [base, intent].join("_");
-}
-
-/** Per-path texture metadata from profile-driven generator (for manifest). */
-const textureMetaByPath = new Map<string, { motifsApplied: string[]; materialClassApplied: string }>();
-
-export interface WriteMaterializedFilesOptions {
-  mcVersion?: string;
-}
-
-/**
- * Ensure buffer has a perceptual fingerprint not in seen set; retry with stronger theme/variation up to maxAttempts.
- * Uses same algorithm as validator (perceptualFingerprint). Mutates seen set.
- */
-function ensurePerceptuallyUnique(
-  buffer: Buffer,
-  relPath: string,
-  seenFingerprints: Set<string>,
-  maxAttempts: number,
-  applyTheme: (buf: Buffer, path: string, strength?: number) => Buffer,
-  applyVariation: (buf: Buffer, path: string) => Buffer
-): Buffer {
-  let current = buffer;
-  let fp = perceptualFingerprint(current);
-  let attempt = 0;
-  while (fp != null && seenFingerprints.has(fp) && attempt < maxAttempts) {
-    const strength = Math.min(0.95, 0.45 + attempt * 0.12);
-    current = applyTheme(current, relPath, strength);
-    current = applyVariation(current, `${relPath}-perceptual-retry-${attempt}`);
-    fp = perceptualFingerprint(current);
-    attempt++;
-  }
-  if (fp != null) seenFingerprints.add(fp);
-  return current;
-}
-
-/**
- * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
- * If a .png has copyFromVanillaPaths, copies from VANILLA_ASSETS_SOURCE (client_jar or bundled_pack); fail loud if source not set or not found.
- * Otherwise .png with empty contents gets a 32x32 opaque PNG (material color + noise + motifs when profile present).
- */
-async function writeMaterializedFiles(
-  files: MaterializedFile[],
-  workDir: string,
-  options?: WriteMaterializedFilesOptions
-): Promise<void> {
-  textureMetaByPath.clear();
-  const needsVanilla = files.some((f) => f.path.endsWith(".png") && f.copyFromVanillaPaths?.length);
-  let vanillaSource: VanillaAssetsSource | null = null;
-  if (needsVanilla) {
-    const raw = process.env.VANILLA_ASSETS_SOURCE;
-    if (raw !== "client_jar" && raw !== "bundled_pack") {
-      throw new Error(
-        `[VANILLA_ASSETS] Some textures require copying from vanilla (copyFromVanillaPaths). Set VANILLA_ASSETS_SOURCE to "client_jar" or "bundled_pack". Current value: ${raw ?? "(unset)"}`
-      );
-    }
-    vanillaSource = raw;
-  }
-
-  const MAX_PERCEPTUAL_ATTEMPTS = 5;
-  const seenPerceptualFingerprints = new Set<string>();
-
-  for (const file of files) {
-    const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt, copyFromVanillaPaths } = file;
-    const fullPath = join(workDir, relPath);
-    mkdirSync(dirname(fullPath), { recursive: true });
-
-    if (relPath.endsWith(".png") && copyFromVanillaPaths?.length) {
-      const vanillaPath = copyFromVanillaPaths[0];
-      let buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, {
-        mcVersion: options?.mcVersion ?? process.env.MC_VERSION ?? "1.21.1",
-        bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
-      });
-      buffer = ensurePngRgba(buffer);
-      buffer = applySemanticColorTheme(buffer, relPath);
-      buffer = applyPerEntityVariation(buffer, relPath);
-      buffer = ensurePerceptuallyUnique(buffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
-      writeFileSync(fullPath, buffer);
-    } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
-      const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
-      const seed = textureSeedFromFile(relPath, file);
-      const profile = (file as { textureProfile?: { materialClass?: string; visualMotifs?: string[] } }).textureProfile;
-      if (process.env.DEBUG && texturePrompt) {
-        console.log(`[BUILDER] texture prompt ${relPath}: ${texturePrompt}`);
-      }
-      const { buffer: pngBuffer, motifsApplied, materialClassApplied } = generateOpaquePng16x16WithProfile({
-        material,
-        colorHint,
-        seed,
-        textureProfile: profile ?? undefined,
-      });
-      let rgbaBuffer = ensurePngRgba(pngBuffer);
-      rgbaBuffer = applySemanticColorTheme(rgbaBuffer, relPath);
-      rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
-      rgbaBuffer = ensurePerceptuallyUnique(rgbaBuffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
-      writeFileSync(fullPath, rgbaBuffer);
-      if (profile) textureMetaByPath.set(relPath, { motifsApplied, materialClassApplied });
-    } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
-      let rgbaBuffer = ensurePngRgba(Buffer.from(contents, "base64"));
-      rgbaBuffer = applySemanticColorTheme(rgbaBuffer, relPath);
-      rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
-      rgbaBuffer = ensurePerceptuallyUnique(rgbaBuffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
-      writeFileSync(fullPath, rgbaBuffer);
-    } else {
-      writeFileSync(fullPath, contents, "utf8");
-    }
-  }
-}
+/** Re-export for callers that import from index. */
+export { writeMaterializedFiles, type WriteMaterializedFilesOptions } from "./write-materialized-files.js";
 
 /** Texture manifest entry for auditing and regression detection. */
 export interface TextureManifestEntry {
@@ -253,7 +134,7 @@ function buildAndWriteTextureManifest(files: MaterializedFile[], workDir: string
     if (!f.path.endsWith(".png") || !(f as { textureProfile?: { intent: string; materialHint: string } }).textureProfile) continue;
     const profile = (f as { textureProfile: { intent: string; materialHint: string; materialClass?: string; visualMotifs?: string[] } }).textureProfile;
     const id = f.path.replace(/.*\/(?:item|block)\//, "").replace(/\.png$/, "");
-    const meta = textureMetaByPath.get(f.path);
+    const meta = getTextureMetaByPath().get(f.path);
     manifest.push({
       id,
       intent: profile.intent as "block" | "item" | "processed",

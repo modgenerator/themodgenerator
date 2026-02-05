@@ -47,6 +47,8 @@ export interface MaterializedFile {
   visualFeatures?: string[];
   /** When set, builder copies these vanilla texture paths (relative to assets/minecraft/textures, no .png) instead of generating. */
   copyFromVanillaPaths?: string[];
+  /** When set, builder uses collectVanillaDepsForBlock(vanillaTemplateBlockId) to resolve textures from blockstate+models (no guessed paths). */
+  vanillaTemplateBlockId?: string;
 }
 
 export interface FabricMaterializerTier1 {

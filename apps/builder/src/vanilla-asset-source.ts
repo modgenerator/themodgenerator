@@ -104,6 +104,18 @@ function jarEntryPath(vanillaPath: string): string {
 }
 
 /**
+ * Full entry path inside jar/pack (e.g. "assets/minecraft/blockstates/oak_button.json").
+ * Used for blockstates, models, and textures.
+ */
+export function getVanillaAssetEntryPath(relativeTo: "textures" | "root", vanillaPath: string): string {
+  if (relativeTo === "textures") {
+    const withExt = vanillaPath.endsWith(".png") ? vanillaPath : `${vanillaPath}.png`;
+    return `assets/minecraft/textures/${withExt}`;
+  }
+  return vanillaPath.startsWith("assets/") ? vanillaPath : `assets/minecraft/${vanillaPath}`;
+}
+
+/**
  * Read one file from a zip (jar) into a buffer. Uses yauzl for zip reading.
  * Fail loud if yauzl is not available.
  */
@@ -211,4 +223,47 @@ export async function getVanillaTextureBuffer(
   }
 
   throw new Error(`[VANILLA_ASSETS] Unknown VANILLA_ASSETS_SOURCE: ${source}. Use "client_jar" or "bundled_pack".`);
+}
+
+/**
+ * Read any vanilla asset by full entry path (e.g. "assets/minecraft/blockstates/oak_button.json").
+ * Used by vanilla-dep-collector for blockstates and models.
+ */
+export async function getVanillaAssetBuffer(
+  source: VanillaAssetsSource,
+  entryPath: string,
+  options: { mcVersion?: string; bundledPackRoot?: string }
+): Promise<Buffer> {
+  const normalizedEntry = entryPath.replace(/\\/g, "/");
+
+  if (source === "client_jar") {
+    const mcVersion = options.mcVersion ?? env.MC_VERSION ?? DEFAULT_MC_VERSION;
+    const jarPath = resolveClientJarPath(mcVersion);
+    if (!existsSync(jarPath)) {
+      throw new Error(
+        `[VANILLA_ASSETS] Minecraft client jar not found. Expected: ${jarPath}`
+      );
+    }
+    return readEntryFromZip(jarPath, normalizedEntry);
+  }
+
+  if (source === "bundled_pack") {
+    const root = getResolvedBundledPackPath(options.bundledPackRoot);
+    if (!root || !existsSync(root)) {
+      throw new Error(
+        `[VANILLA_ASSETS] VANILLA_ASSETS_SOURCE=bundled_pack requires a valid pack path.`
+      );
+    }
+    const stat = statSync(root);
+    if (stat.isFile() && root.toLowerCase().endsWith(".zip")) {
+      return readEntryFromZip(root, normalizedEntry);
+    }
+    const fullPath = join(root, normalizedEntry);
+    if (!existsSync(fullPath)) {
+      throw new Error(`[VANILLA_ASSETS] Bundled asset not found: ${fullPath}`);
+    }
+    return readFileSync(fullPath);
+  }
+
+  throw new Error(`[VANILLA_ASSETS] Unknown VANILLA_ASSETS_SOURCE: ${source}.`);
 }

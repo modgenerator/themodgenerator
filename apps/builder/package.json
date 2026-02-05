@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/ensure-vanilla-assets.js && tsc",
     "ensure-vanilla-assets": "node scripts/ensure-vanilla-assets.js",
-    "test": "npm run build && node --test dist/texture-png.test.js",
+    "test": "npm run build && node --test dist/vanilla-dep-collector.test.js dist/texture-png.test.js dist/e2e-maple-build.test.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "tsc --noEmit"

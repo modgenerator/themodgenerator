@@ -216,13 +216,34 @@ export function classifyEntityVisualKind(entity: EntityForVisual): VisualKind {
   return VisualKind.SIMPLE_ITEM;
 }
 
+/** Vanilla block id used to collect deps from blockstate+models (builder resolves textures from models). */
+const VANILLA_TEMPLATE_BLOCK_ID: Partial<Record<VisualKind, string>> = {
+  [VisualKind.LOG]: "oak_log",
+  [VisualKind.WOOD]: "oak_wood",
+  [VisualKind.PLANKS]: "oak_planks",
+  [VisualKind.STAIRS]: "oak_stairs",
+  [VisualKind.SLAB]: "oak_slab",
+  [VisualKind.FENCE]: "oak_fence",
+  [VisualKind.FENCE_GATE]: "oak_fence_gate",
+  [VisualKind.DOOR]: "oak_door",
+  [VisualKind.TRAPDOOR]: "oak_trapdoor",
+  [VisualKind.BUTTON]: "oak_button",
+  [VisualKind.PRESSURE_PLATE]: "oak_pressure_plate",
+  [VisualKind.SIGN]: "oak_sign",
+  [VisualKind.HANGING_SIGN]: "oak_hanging_sign",
+  [VisualKind.LEAVES]: "oak_leaves",
+  [VisualKind.SAPLING]: "oak_sapling",
+};
+
 export interface VanillaVisualDefaultResult {
   /** Parent model path (e.g. minecraft:item/generated, minecraft:item/handheld). */
   modelParent: string;
-  /** Vanilla texture paths to copy (relative to assets/minecraft/textures, no .png). */
+  /** Vanilla texture paths to copy (relative to assets/minecraft/textures, no .png). Fallback when no collector. */
   copyFromVanillaPaths: string[];
   /** Resolved VisualKind. */
   visualKind: VisualKind;
+  /** When set, builder uses collectVanillaDepsForBlock to get textures from blockstate+models (no guessed paths). */
+  vanillaTemplateBlockId?: string;
 }
 
 /**
@@ -240,9 +261,13 @@ export function resolveVanillaVisualDefaults(
     ? ITEM_MODEL_PARENT[visualKind]
     : "minecraft:block/cube_all";
 
+  // For wood-family parts (button, fence_gate, etc.) vanilla has no dedicated texture; models reference planks.
+  // Set vanillaTemplateBlockId for both block and item so the builder uses collectVanillaDepsForBlock (no guessed paths).
+  const vanillaTemplateBlockId = VANILLA_TEMPLATE_BLOCK_ID[visualKind];
   return {
     modelParent,
     copyFromVanillaPaths: [templatePath],
     visualKind,
+    ...(vanillaTemplateBlockId && { vanillaTemplateBlockId }),
   };
 }

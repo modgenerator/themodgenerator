@@ -263,7 +263,10 @@ export function assetKeysToFiles(
       textureIntent,
       ...(textureProfile && { textureProfile }),
       ...(texturePrompt && { texturePrompt }),
-      ...(vanillaDefault && { copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths }),
+      ...(vanillaDefault && {
+        copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths,
+        ...(vanillaDefault.vanillaTemplateBlockId && { vanillaTemplateBlockId: vanillaDefault.vanillaTemplateBlockId }),
+      }),
       ...meta,
     });
     const isBlockId = expanded.blocks.some((b) => b.id === id);
@@ -303,7 +306,10 @@ export function assetKeysToFiles(
       textureIntent,
       ...(textureProfile && { textureProfile }),
       ...(texturePrompt && { texturePrompt }),
-      ...(vanillaDefault && { copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths }),
+      ...(vanillaDefault && {
+        copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths,
+        ...(vanillaDefault.vanillaTemplateBlockId && { vanillaTemplateBlockId: vanillaDefault.vanillaTemplateBlockId }),
+      }),
       ...meta,
     });
     files.push({

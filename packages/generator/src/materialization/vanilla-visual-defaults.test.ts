@@ -64,4 +64,35 @@ describe("resolveVanillaVisualDefaults", () => {
     assert.strictEqual(result.modelParent, "minecraft:block/cube_all");
     assert.strictEqual(result.visualKind, VisualKind.LOG);
   });
+
+  it("button and pressure_plate use oak_planks (vanilla has no textures/block/oak_button.png or oak_pressure_plate.png)", () => {
+    const buttonResult = resolveVanillaVisualDefaults({
+      id: "maple_button",
+      name: "Maple Button",
+      type: "block",
+    });
+    assert.strictEqual(buttonResult.visualKind, VisualKind.BUTTON);
+    assert.ok(
+      buttonResult.copyFromVanillaPaths.some((p) => p.includes("oak_planks")),
+      "button must copy oak_planks, not oak_button"
+    );
+    assert.ok(
+      !buttonResult.copyFromVanillaPaths.some((p) => p.includes("_button")),
+      "must NOT request textures/block/*_button.png"
+    );
+    const pressureResult = resolveVanillaVisualDefaults({
+      id: "maple_pressure_plate",
+      name: "Maple Pressure Plate",
+      type: "block",
+    });
+    assert.strictEqual(pressureResult.visualKind, VisualKind.PRESSURE_PLATE);
+    assert.ok(
+      pressureResult.copyFromVanillaPaths.some((p) => p.includes("oak_planks")),
+      "pressure_plate must copy oak_planks"
+    );
+    assert.ok(
+      !pressureResult.copyFromVanillaPaths.some((p) => p.includes("_pressure_plate")),
+      "must NOT request textures/block/*_pressure_plate.png (wood pressure plate uses planks)"
+    );
+  });
 });

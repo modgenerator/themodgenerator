@@ -391,6 +391,12 @@ describe("materializer invariants", () => {
         f.copyFromVanillaPaths && f.copyFromVanillaPaths.length > 0,
         `maple texture ${f.path} must have copyFromVanillaPaths so builder can copy vanilla (no red)`
       );
+      for (const vanillaPath of f.copyFromVanillaPaths) {
+        assert.ok(
+          !vanillaPath.includes("_button") && !vanillaPath.includes("_pressure_plate"),
+          `maple texture ${f.path} must not request non-existent vanilla paths (no *_button.png or *_pressure_plate.png): got ${vanillaPath}`
+        );
+      }
     }
     const woodBlockIds = expanded.blocks.map((b) => b.id).filter((id) => id.startsWith("maple_"));
     assert.ok(woodBlockIds.includes("maple_log"));

@@ -97,8 +97,9 @@ const VANILLA_TEMPLATE: Record<VisualKind, string> = {
   [VisualKind.FENCE_GATE]: "block/oak_fence_gate",
   [VisualKind.DOOR]: "item/oak_door",
   [VisualKind.TRAPDOOR]: "block/oak_trapdoor",
-  [VisualKind.BUTTON]: "block/oak_button",
-  [VisualKind.PRESSURE_PLATE]: "block/oak_pressure_plate",
+  /** Buttons and wooden pressure plates have no dedicated texture in vanilla; models reference planks. */
+  [VisualKind.BUTTON]: "block/oak_planks",
+  [VisualKind.PRESSURE_PLATE]: "block/oak_planks",
   [VisualKind.SIGN]: "item/oak_sign",
   [VisualKind.HANGING_SIGN]: "item/oak_hanging_sign",
   [VisualKind.BOAT]: "item/oak_boat",

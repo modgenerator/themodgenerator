@@ -109,6 +109,27 @@ export function woodRecipesFromWoodTypes(woodTypes: WoodType[]): ModRecipe[] {
       ingredients: [{ id: log, count: 1 }],
       result: { id: planks, count: 4 },
     });
+    // Vanilla-equivalent recipes using our planks only (no dependency on #minecraft:planks)
+    recipes.push({
+      id: `sticks_from_${woodId}_planks`,
+      type: "crafting_shapeless",
+      ingredients: [{ id: planks, count: 2 }],
+      result: { id: "minecraft:stick", count: 4 },
+    });
+    recipes.push({
+      id: `crafting_table_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["##", "##"],
+      key: { "#": { id: planks } },
+      result: { id: "minecraft:crafting_table", count: 1 },
+    });
+    recipes.push({
+      id: `chest_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["###", "# #", "###"],
+      key: { "#": { id: planks } },
+      result: { id: "minecraft:chest", count: 1 },
+    });
     recipes.push({
       id: `${woodId}_stairs`,
       type: "crafting_shaped",

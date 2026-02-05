@@ -194,6 +194,19 @@ function modMainJava(
   }
   const blockRegistrations = blockLines.join("\n");
 
+  const strippingLines: string[] = [];
+  if (woodIds.length > 0) {
+    for (const woodId of woodIds) {
+      const logVar = toJavaId(woodId + "_log") + "Block";
+      const strippedLogVar = toJavaId(woodId + "_stripped_log") + "Block";
+      const woodVar = toJavaId(woodId + "_wood") + "Block";
+      const strippedWoodVar = toJavaId(woodId + "_stripped_wood") + "Block";
+      strippingLines.push(`		StrippableBlockRegistry.register(${logVar}, ${strippedLogVar});`);
+      strippingLines.push(`		StrippableBlockRegistry.register(${woodVar}, ${strippedWoodVar});`);
+    }
+  }
+  const strippingRegistration = strippingLines.length > 0 ? strippingLines.join("\n") : "";
+
   const hasItems = expanded.items.length > 0;
   const hasBlocks = expanded.blocks.length > 0;
   const imports: string[] = [
@@ -201,6 +214,7 @@ function modMainJava(
     "",
     "import net.fabricmc.api.ModInitializer;",
     "import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;",
+    "import net.fabricmc.fabric.api.registry.StrippableBlockRegistry;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
     "import net.minecraft.sound.BlockSoundGroup;",
@@ -217,6 +231,7 @@ function modMainJava(
   const initBody: string[] = [];
   if (hasItems) initBody.push(itemRegistrations);
   if (hasBlocks) initBody.push(blockRegistrations);
+  if (strippingRegistration) initBody.push(strippingRegistration);
   if (hasItems) {
     initBody.push(creativeTabItems(expanded.items.map((i) => i.id)));
   }

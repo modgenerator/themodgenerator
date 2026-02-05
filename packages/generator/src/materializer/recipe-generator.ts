@@ -21,6 +21,14 @@ export function resolveIngredientId(modId: string, id: string): string {
   return `${modId}:${id}`;
 }
 
+/**
+ * Resolve recipe result id for JSON. If id is already namespaced (e.g. "minecraft:stick"), return as-is; else prefix with modId.
+ */
+function resolveResultId(modId: string, id: string): string {
+  if (id.includes(":")) return id;
+  return `${modId}:${id}`;
+}
+
 /** Crafting shapeless from spec: ingredients[] MUST have at least one entry. MC 1.21.1 result uses "id". */
 function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
   const ingredients = (rec.ingredients ?? []).flatMap((ing) =>
@@ -34,7 +42,7 @@ function craftingShapelessFromSpec(modId: string, rec: ModRecipe): string {
       type: "minecraft:crafting_shapeless",
       ingredients,
       result: {
-        id: `${modId}:${rec.result.id}`,
+        id: resolveResultId(modId, rec.result.id),
         count: rec.result.count ?? 1,
       },
     },
@@ -60,7 +68,7 @@ function craftingShapedFromSpec(modId: string, rec: ModRecipe): string {
       pattern,
       key: keyOut,
       result: {
-        id: `${modId}:${rec.result.id}`,
+        id: resolveResultId(modId, rec.result.id),
         count: rec.result.count ?? 1,
       },
     },
@@ -84,7 +92,7 @@ function smeltingFromSpec(modId: string, rec: ModRecipe): string {
     {
       type: "minecraft:smelting",
       ingredient: { item: resolveIngredientId(modId, ing.id) },
-      result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 },
+      result: { id: resolveResultId(modId, rec.result.id), count: rec.result.count ?? 1 },
       experience,
       cookingtime,
     },
@@ -101,7 +109,7 @@ function blastingFromSpec(modId: string, rec: ModRecipe): string {
   const experience = rec.experience ?? 0.35;
   const cookingtime = rec.cookingtime ?? 100;
   return JSON.stringify(
-    { type: "minecraft:blasting", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
+    { type: "minecraft:blasting", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: resolveResultId(modId, rec.result.id), count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );
@@ -115,7 +123,7 @@ function smokingFromSpec(modId: string, rec: ModRecipe): string {
   const experience = rec.experience ?? 0.35;
   const cookingtime = rec.cookingtime ?? 100;
   return JSON.stringify(
-    { type: "minecraft:smoking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
+    { type: "minecraft:smoking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: resolveResultId(modId, rec.result.id), count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );
@@ -129,7 +137,7 @@ function campfireCookingFromSpec(modId: string, rec: ModRecipe): string {
   const experience = rec.experience ?? 0.35;
   const cookingtime = rec.cookingtime ?? 600;
   return JSON.stringify(
-    { type: "minecraft:campfire_cooking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: `${modId}:${rec.result.id}`, count: rec.result.count ?? 1 }, experience, cookingtime },
+    { type: "minecraft:campfire_cooking", ingredient: { item: resolveIngredientId(modId, ing.id) }, result: { id: resolveResultId(modId, rec.result.id), count: rec.result.count ?? 1 }, experience, cookingtime },
     null,
     2
   );

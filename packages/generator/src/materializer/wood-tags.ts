@@ -1,8 +1,9 @@
 /**
- * Data-pack tag files so vanilla recipes (sticks, crafting table, etc.) accept generated wood.
- * Adds generated wood blocks/items to minecraft tags: planks, logs, logs_that_burn, mineable/axe.
- * Path: src/main/resources/data/minecraft/tags/...
- * Use "replace": false so our values merge with vanilla.
+ * Data-pack tag files for generated wood under OUR mod namespace only.
+ * We do NOT write to data/minecraft/tags/** so other packs (e.g. fabric-convention-tags-v2)
+ * cannot override our entries. Vanilla-equivalent crafting uses our own recipes (sticks,
+ * crafting table, chest) that reference our planks directly.
+ * Path: src/main/resources/data/<modId>/tags/...
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -87,38 +88,39 @@ export function woodTagDataFiles(expanded: ExpandedSpecTier1): MaterializedFile[
   }
 
   const files: MaterializedFile[] = [];
+  const tagBase = `${DATA_BASE}/${modId}/tags`;
 
   if (planksItems.size > 0) {
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/items/planks.json`,
+      path: `${tagBase}/items/planks.json`,
       contents: JSON.stringify({ replace: false, values: [...planksItems].sort() }, null, 2),
     });
   }
   if (planksBlocks.size > 0) {
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/blocks/planks.json`,
+      path: `${tagBase}/blocks/planks.json`,
       contents: JSON.stringify({ replace: false, values: [...planksBlocks].sort() }, null, 2),
     });
   }
   if (logItems.size > 0) {
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/items/logs.json`,
+      path: `${tagBase}/items/logs.json`,
       contents: JSON.stringify({ replace: false, values: [...logItems].sort() }, null, 2),
     });
   }
   if (logBlocks.size > 0) {
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/blocks/logs.json`,
+      path: `${tagBase}/blocks/logs.json`,
       contents: JSON.stringify({ replace: false, values: [...logBlocks].sort() }, null, 2),
     });
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/blocks/logs_that_burn.json`,
+      path: `${tagBase}/blocks/logs_that_burn.json`,
       contents: JSON.stringify({ replace: false, values: [...logBlocks].sort() }, null, 2),
     });
   }
   if (mineableAxe.length > 0) {
     files.push({
-      path: `${DATA_BASE}/minecraft/tags/blocks/mineable/axe.json`,
+      path: `${tagBase}/blocks/mineable/axe.json`,
       contents: JSON.stringify({ replace: false, values: mineableAxe }, null, 2),
     });
   }

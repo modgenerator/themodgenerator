@@ -74,6 +74,9 @@ describe("expandSpecTier1", () => {
     const expanded = expandSpecTier1(spec);
     const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
     assert.ok(recipeIds.includes("maple_planks_from_log"));
+    assert.ok(recipeIds.includes("sticks_from_maple_planks"));
+    assert.ok(recipeIds.includes("crafting_table_from_maple_planks"));
+    assert.ok(recipeIds.includes("chest_from_maple_planks"));
     assert.ok(recipeIds.includes("maple_stairs"));
     assert.ok(recipeIds.includes("maple_slab"));
     assert.ok(recipeIds.includes("maple_fence"));

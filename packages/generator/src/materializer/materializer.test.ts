@@ -116,8 +116,8 @@ describe("materializeTier1 golden tests", () => {
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/models\/block\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/blockstates\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/recipe\/[a-z0-9_]+\.json$/,
-      /^src\/main\/resources\/data\/minecraft\/tags\/(items|blocks)\/[a-z0-9_]+\.json$/,
-      /^src\/main\/resources\/data\/minecraft\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/(items|blocks)\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/loot_tables\/blocks\/[a-z0-9_]+\.json$/,
     ];
     for (const f of files) {
@@ -411,7 +411,7 @@ describe("materializer invariants", () => {
     assert.ok(recipeIds.includes("maple_boat"));
   });
 
-  it("wood type Maple: vanilla tag integration (planks, logs, mineable/axe) and loot tables", () => {
+  it("wood type Maple: tags under mod namespace (no data/minecraft/tags), loot tables", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -419,17 +419,19 @@ describe("materializer invariants", () => {
     const assets = composeTier1Stub(expanded.descriptors);
     const files = materializeTier1(expanded, assets);
 
-    const planksTag = files.find((f) => f.path.includes("data/minecraft/tags/items/planks.json"));
-    assert.ok(planksTag, "must generate minecraft tags/items/planks.json");
+    const minecraftTagFiles = files.filter((f) => f.path.includes("data/minecraft/tags/"));
+    assert.strictEqual(minecraftTagFiles.length, 0, "must NOT generate any data/minecraft/tags (pack priority safe)");
+
+    const planksTag = files.find((f) => f.path.includes("data/test_mod/tags/items/planks.json"));
+    assert.ok(planksTag, "must generate mod-namespace tags/items/planks.json");
     const planksData = JSON.parse(planksTag!.contents) as { replace: boolean; values: string[] };
-    assert.strictEqual(planksData.replace, false, "planks tag must use replace: false to merge with vanilla");
     assert.ok(
       planksData.values.some((v) => v.includes("maple_planks")),
-      "planks tag must include maple_planks so vanilla stick recipe accepts it"
+      "planks tag must include maple_planks"
     );
 
-    const axeTag = files.find((f) => f.path.includes("data/minecraft/tags/blocks/mineable/axe.json"));
-    assert.ok(axeTag, "must generate minecraft tags/blocks/mineable/axe.json");
+    const axeTag = files.find((f) => f.path.includes("data/test_mod/tags/blocks/mineable/axe.json"));
+    assert.ok(axeTag, "must generate mod-namespace tags/blocks/mineable/axe.json");
     const axeData = JSON.parse(axeTag!.contents) as { values: string[] };
     assert.ok(axeData.values.some((v) => v.includes("maple_log")), "mineable/axe must include maple_log");
     assert.ok(axeData.values.some((v) => v.includes("maple_planks")), "mineable/axe must include maple_planks");
@@ -459,7 +461,7 @@ describe("materializer invariants", () => {
     );
   });
 
-  it("wood type Maple: planks tag has maple_planks only (no stripped_planks), no StrippablePlanksBlock", () => {
+  it("wood type Maple: planks tag under mod namespace, no stripped_planks in tag", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -467,20 +469,64 @@ describe("materializer invariants", () => {
     const assets = composeTier1Stub(expanded.descriptors);
     const files = materializeTier1(expanded, assets);
 
-    const planksTag = files.find((f) => f.path.includes("data/minecraft/tags/items/planks.json"));
-    assert.ok(planksTag, "must generate planks tag");
+    const planksTag = files.find((f) => f.path.includes("data/test_mod/tags/items/planks.json"));
+    assert.ok(planksTag, "must generate mod-namespace planks tag");
     const planksData = JSON.parse(planksTag!.contents) as { values: string[] };
     assert.ok(
       planksData.values.some((v) => v.includes("maple_planks")),
-      "planks tag must include maple_planks so vanilla stick/crafting table work"
+      "planks tag must include maple_planks"
     );
     assert.ok(
       !planksData.values.some((v) => v.includes("stripped_planks")),
       "planks tag must NOT include stripped_planks (vanilla stripping is log/wood only)"
     );
+  });
 
+  it("wood type Maple: StrippableBlockRegistry.register for log and wood", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
     const scaffold = fabricScaffoldFiles(expanded);
-    const strippableClass = scaffold.find((f) => f.path.includes("StrippablePlanksBlock.java"));
-    assert.ok(!strippableClass, "must NOT generate StrippablePlanksBlock; planks are normal Block");
+    const javaFile = scaffold.find((f) => f.path.endsWith("Mod.java") || f.path.includes("TestModMod.java"));
+    assert.ok(javaFile, "must generate Mod main Java");
+    const contents = javaFile!.contents;
+    assert.ok(
+      contents.includes("StrippableBlockRegistry.register"),
+      "must register stripping via StrippableBlockRegistry"
+    );
+    assert.ok(
+      contents.includes("maple_logBlock") && contents.includes("maple_stripped_logBlock"),
+      "must register log -> stripped_log"
+    );
+    assert.ok(
+      contents.includes("maple_woodBlock") && contents.includes("maple_stripped_woodBlock"),
+      "must register wood -> stripped_wood"
+    );
+  });
+
+  it("wood type Maple: vanilla-equivalent recipes (sticks, crafting table, chest) from our planks", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const sticksRecipe = files.find((f) => f.path.includes("recipe/sticks_from_maple_planks.json"));
+    assert.ok(sticksRecipe, "must generate sticks_from_maple_planks recipe");
+    const sticksData = JSON.parse(sticksRecipe!.contents) as { result?: { id?: string; count?: number } };
+    assert.strictEqual(sticksData.result?.id, "minecraft:stick");
+    assert.strictEqual(sticksData.result?.count, 4);
+
+    const tableRecipe = files.find((f) => f.path.includes("recipe/crafting_table_from_maple_planks.json"));
+    assert.ok(tableRecipe, "must generate crafting_table_from_maple_planks recipe");
+    const tableData = JSON.parse(tableRecipe!.contents) as { result?: { id?: string } };
+    assert.strictEqual(tableData.result?.id, "minecraft:crafting_table");
+
+    const chestRecipe = files.find((f) => f.path.includes("recipe/chest_from_maple_planks.json"));
+    assert.ok(chestRecipe, "must generate chest_from_maple_planks recipe");
+    const chestData = JSON.parse(chestRecipe!.contents) as { result?: { id?: string } };
+    assert.strictEqual(chestData.result?.id, "minecraft:chest");
   });
 });

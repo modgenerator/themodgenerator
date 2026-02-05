@@ -30,7 +30,8 @@ const WOOD_SUFFIXES = [
 ] as const;
 
 const LOG_SUFFIXES = ["_log", "_stripped_log", "_wood", "_stripped_wood"] as const;
-const PLANKS_SUFFIX = "_planks";
+/** Planks go in minecraft:planks tag so sticks/crafting table/chest work. */
+const PLANKS_SUFFIXES = ["_planks"] as const;
 
 function isWoodBlockId(blockId: string, woodIds: string[]): boolean {
   for (const woodId of woodIds) {
@@ -42,7 +43,7 @@ function isWoodBlockId(blockId: string, woodIds: string[]): boolean {
 }
 
 function isPlanksId(id: string, woodIds: string[]): boolean {
-  return woodIds.some((w) => id === w + PLANKS_SUFFIX);
+  return woodIds.some((w) => PLANKS_SUFFIXES.some((s) => id === w + s));
 }
 
 function isLogId(id: string, woodIds: string[]): boolean {

@@ -447,7 +447,7 @@ describe("materializer invariants", () => {
     });
     const expanded = expandSpecTier1(spec);
     const scaffold = fabricScaffoldFiles(expanded);
-    const javaFile = scaffold.find((f) => f.path.endsWith(".java"));
+    const javaFile = scaffold.find((f) => f.path.endsWith(".java") && !f.path.includes("StrippablePlanks"));
     assert.ok(javaFile, "must generate Mod main Java");
     assert.ok(
       javaFile!.contents.includes("strength(2.0f, 3.0f)"),
@@ -457,5 +457,30 @@ describe("materializer invariants", () => {
       javaFile!.contents.includes("BlockSoundGroup.WOOD"),
       "wood blocks must have wood sound group"
     );
+  });
+
+  it("wood type Maple: planks tag has maple_planks only (no stripped_planks), no StrippablePlanksBlock", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const planksTag = files.find((f) => f.path.includes("data/minecraft/tags/items/planks.json"));
+    assert.ok(planksTag, "must generate planks tag");
+    const planksData = JSON.parse(planksTag!.contents) as { values: string[] };
+    assert.ok(
+      planksData.values.some((v) => v.includes("maple_planks")),
+      "planks tag must include maple_planks so vanilla stick/crafting table work"
+    );
+    assert.ok(
+      !planksData.values.some((v) => v.includes("stripped_planks")),
+      "planks tag must NOT include stripped_planks (vanilla stripping is log/wood only)"
+    );
+
+    const scaffold = fabricScaffoldFiles(expanded);
+    const strippableClass = scaffold.find((f) => f.path.includes("StrippablePlanksBlock.java"));
+    assert.ok(!strippableClass, "must NOT generate StrippablePlanksBlock; planks are normal Block");
   });
 });

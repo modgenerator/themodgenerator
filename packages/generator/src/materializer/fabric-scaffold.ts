@@ -137,8 +137,8 @@ function toJavaId(id: string): string {
 
 /** Wood family block id suffixes (must match expand-wood-type). */
 const WOOD_BLOCK_SUFFIXES = [
-  "_log", "_stripped_log", "_wood", "_stripped_wood", "_planks", "_stairs", "_slab",
-  "_fence", "_fence_gate", "_door", "_trapdoor", "_pressure_plate", "_button", "_sign", "_hanging_sign",
+  "_log", "_stripped_log", "_wood", "_stripped_wood", "_planks",
+  "_stairs", "_slab", "_fence", "_fence_gate", "_door", "_trapdoor", "_pressure_plate", "_button", "_sign", "_hanging_sign",
 ];
 
 function isWoodBlock(blockId: string, woodIds: string[]): boolean {
@@ -290,5 +290,5 @@ export function fabricScaffoldFiles(
       contents: mixinsJson(modId),
     },
   ];
-  return files;
+  return files.sort((a, b) => a.path.localeCompare(b.path));
 }

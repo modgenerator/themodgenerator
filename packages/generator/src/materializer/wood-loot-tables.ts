@@ -37,7 +37,7 @@ function isWoodBlockId(blockId: string, woodIds: string[]): boolean {
   return false;
 }
 
-/** One pool, one entry: drop self. Doors/slabs still drop 1 item (game uses block state for slab count). */
+/** One pool, one entry: drop self. */
 function dropSelfLootTable(modId: string, blockId: string): string {
   return JSON.stringify(
     {
@@ -46,6 +46,59 @@ function dropSelfLootTable(modId: string, blockId: string): string {
         {
           rolls: 1,
           entries: [{ type: "minecraft:item", name: `${modId}:${blockId}` }],
+        },
+      ],
+    },
+    null,
+    2
+  );
+}
+
+/** Slab: drop 1 for single (bottom/top), 2 for double. Block state property "type". */
+function slabLootTable(modId: string, blockId: string): string {
+  const blockRef = `${modId}:${blockId}`;
+  return JSON.stringify(
+    {
+      type: "minecraft:block",
+      pools: [
+        {
+          rolls: 1,
+          entries: [
+            {
+              type: "minecraft:item",
+              name: blockRef,
+              conditions: [
+                {
+                  condition: "minecraft:block_state_property",
+                  block: blockRef,
+                  properties: { type: "bottom" },
+                },
+              ],
+            },
+            {
+              type: "minecraft:item",
+              name: blockRef,
+              conditions: [
+                {
+                  condition: "minecraft:block_state_property",
+                  block: blockRef,
+                  properties: { type: "top" },
+                },
+              ],
+            },
+            {
+              type: "minecraft:item",
+              name: blockRef,
+              count: 2,
+              conditions: [
+                {
+                  condition: "minecraft:block_state_property",
+                  block: blockRef,
+                  properties: { type: "double" },
+                },
+              ],
+            },
+          ],
         },
       ],
     },
@@ -68,9 +121,11 @@ export function woodLootTableFiles(expanded: ExpandedSpecTier1): MaterializedFil
   const files: MaterializedFile[] = [];
   for (const block of expanded.blocks) {
     if (!isWoodBlockId(block.id, woodIds)) continue;
+    const isSlab = woodIds.some((w) => block.id === w + "_slab");
+    const contents = isSlab ? slabLootTable(modId, block.id) : dropSelfLootTable(modId, block.id);
     files.push({
       path: `${DATA_BASE}/${modId}/loot_tables/blocks/${block.id}.json`,
-      contents: dropSelfLootTable(modId, block.id),
+      contents,
     });
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));

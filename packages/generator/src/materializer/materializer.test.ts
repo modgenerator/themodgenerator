@@ -482,7 +482,25 @@ describe("materializer invariants", () => {
     );
   });
 
-  it("wood type Maple: StrippableBlockRegistry.register for log and wood", () => {
+  it("wood type Maple: log and wood are PillarBlock (AXIS for StrippableBlockRegistry)", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const scaffold = fabricScaffoldFiles(expanded);
+    const javaFile = scaffold.find((f) => f.path.endsWith("Mod.java") || f.path.includes("TestModMod.java"));
+    assert.ok(javaFile, "must generate Mod main Java");
+    const contents = javaFile!.contents;
+    assert.ok(contents.includes("new PillarBlock("), "must use PillarBlock for log/wood blocks");
+    for (const id of ["maple_log", "maple_stripped_log", "maple_wood", "maple_stripped_wood"]) {
+      const regLine = contents.split("\n").find((l) => l.includes(`"${id}"`) && l.includes("Registry.register(Registries.BLOCK"));
+      assert.ok(regLine?.includes("PillarBlock"), `block ${id} must be registered as PillarBlock`);
+    }
+    const planksRegLine = contents.split("\n").find((l) => l.includes('"maple_planks"') && l.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(planksRegLine?.includes("new Block(") && !planksRegLine.includes("PillarBlock"), "maple_planks must be Block not PillarBlock");
+  });
+
+  it("wood type Maple: StrippableBlockRegistry only for log and wood (registerStrippableIfHasAxis)", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -492,17 +510,26 @@ describe("materializer invariants", () => {
     assert.ok(javaFile, "must generate Mod main Java");
     const contents = javaFile!.contents;
     assert.ok(
-      contents.includes("StrippableBlockRegistry.register"),
-      "must register stripping via StrippableBlockRegistry"
+      contents.includes("registerStrippableIfHasAxis"),
+      "must use AXIS safety guard to avoid StrippableBlockRegistry crash"
     );
     assert.ok(
-      contents.includes("maple_logBlock") && contents.includes("maple_stripped_logBlock"),
-      "must register log -> stripped_log"
+      contents.includes("BlockStateProperties.AXIS"),
+      "safety guard must check for AXIS property"
     );
     assert.ok(
-      contents.includes("maple_woodBlock") && contents.includes("maple_stripped_woodBlock"),
-      "must register wood -> stripped_wood"
+      contents.includes("registerStrippableIfHasAxis(maple_logBlock, maple_stripped_logBlock)"),
+      "must register log -> stripped_log only"
     );
+    assert.ok(
+      contents.includes("registerStrippableIfHasAxis(maple_woodBlock, maple_stripped_woodBlock)"),
+      "must register wood -> stripped_wood only"
+    );
+    const invocationLines = contents
+      .split("\n")
+      .filter((l) => l.includes("registerStrippableIfHasAxis(") && !l.includes("Block input"));
+    assert.strictEqual(invocationLines.length, 2, "only log and wood pairs (no planks, stairs, etc.)");
+    assert.ok(!invocationLines.some((l) => l.includes("planks") || l.includes("stairs")), "strippable only for log and wood");
   });
 
   it("wood type Maple: vanilla-equivalent recipes (sticks, crafting table, chest) from our planks", () => {

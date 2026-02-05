@@ -141,8 +141,15 @@ const WOOD_BLOCK_SUFFIXES = [
   "_stairs", "_slab", "_fence", "_fence_gate", "_door", "_trapdoor", "_pressure_plate", "_button", "_sign", "_hanging_sign",
 ];
 
+/** Log/wood blocks only (must be PillarBlock for StrippableBlockRegistry AXIS requirement). */
+const LOG_OR_WOOD_SUFFIXES = ["_log", "_stripped_log", "_wood", "_stripped_wood"] as const;
+
 function isWoodBlock(blockId: string, woodIds: string[]): boolean {
   return woodIds.some((w) => WOOD_BLOCK_SUFFIXES.some((s) => blockId === w + s));
+}
+
+function isLogOrWoodBlock(blockId: string, woodIds: string[]): boolean {
+  return woodIds.some((w) => LOG_OR_WOOD_SUFFIXES.some((s) => blockId === w + s));
 }
 
 /** AbstractBlock.Settings for wood-like blocks: hardness 2, resistance 3, wood sounds. */
@@ -189,23 +196,27 @@ function modMainJava(
     const varName = toJavaId(block.id) + "Block";
     const useWoodSettings = woodIds.length > 0 && isWoodBlock(block.id, woodIds);
     const settings = useWoodSettings ? woodBlockSettings() : "AbstractBlock.Settings.create()";
-    blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
+    const usePillarBlock = woodIds.length > 0 && isLogOrWoodBlock(block.id, woodIds);
+    const blockCtor = usePillarBlock ? "PillarBlock" : "Block";
+    blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new ${blockCtor}(${settings}));`);
     blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
   }
   const blockRegistrations = blockLines.join("\n");
 
   const strippingLines: string[] = [];
   if (woodIds.length > 0) {
+    strippingLines.push("		// Only register log/wood (blocks with AXIS); skip if missing to avoid StrippableBlockRegistry crash");
     for (const woodId of woodIds) {
       const logVar = toJavaId(woodId + "_log") + "Block";
       const strippedLogVar = toJavaId(woodId + "_stripped_log") + "Block";
       const woodVar = toJavaId(woodId + "_wood") + "Block";
       const strippedWoodVar = toJavaId(woodId + "_stripped_wood") + "Block";
-      strippingLines.push(`		StrippableBlockRegistry.register(${logVar}, ${strippedLogVar});`);
-      strippingLines.push(`		StrippableBlockRegistry.register(${woodVar}, ${strippedWoodVar});`);
+      strippingLines.push(`		registerStrippableIfHasAxis(${logVar}, ${strippedLogVar});`);
+      strippingLines.push(`		registerStrippableIfHasAxis(${woodVar}, ${strippedWoodVar});`);
     }
   }
   const strippingRegistration = strippingLines.length > 0 ? strippingLines.join("\n") : "";
+  const needsStrippableHelper = strippingLines.length > 0;
 
   const hasItems = expanded.items.length > 0;
   const hasBlocks = expanded.blocks.length > 0;
@@ -217,6 +228,8 @@ function modMainJava(
     "import net.fabricmc.fabric.api.registry.StrippableBlockRegistry;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
+    "import net.minecraft.block.PillarBlock;",
+    "import net.minecraft.state.property.BlockStateProperties;",
     "import net.minecraft.sound.BlockSoundGroup;",
     "import net.minecraft.item.BlockItem;",
     "import net.minecraft.item.Item;",
@@ -240,6 +253,19 @@ function modMainJava(
   }
   initBody.push("		LOGGER.info(\"" + escapeJava(modName) + " initialized.\");");
 
+  const strippableHelper =
+    needsStrippableHelper
+      ? [
+          "",
+          "	/** Only register if both blocks have AXIS (PillarBlock); avoids StrippableBlockRegistry IllegalArgumentException. */",
+          "	private static void registerStrippableIfHasAxis(Block input, Block stripped) {",
+          "		if (input.getDefaultState().contains(BlockStateProperties.AXIS) && stripped.getDefaultState().contains(BlockStateProperties.AXIS)) {",
+          "			StrippableBlockRegistry.register(input, stripped);",
+          "		}",
+          "	}",
+        ]
+      : [];
+
   const body = [
     "public class " + className + " implements ModInitializer {",
     "	public static final String MOD_ID = \"" + modId + "\";",
@@ -249,6 +275,7 @@ function modMainJava(
     "	public void onInitialize() {",
     ...initBody,
     "	}",
+    ...strippableHelper,
     "}",
   ];
 

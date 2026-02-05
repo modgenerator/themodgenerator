@@ -194,6 +194,131 @@ function hashString(s: string): number {
   return h >>> 0;
 }
 
+/** Extract entity id from texture relPath (e.g. ".../item/ruby.png" -> "ruby"). */
+export function entityIdFromRelPath(relPath: string): string {
+  const itemMatch = relPath.match(/\/(?:item|block)\/([^/]+)\.png$/i);
+  if (itemMatch) return itemMatch[1].toLowerCase();
+  const base = relPath.replace(/\.png$/i, "").split("/").pop() ?? "";
+  return base.toLowerCase();
+}
+
+/**
+ * Known entity id -> hue (0–360). Gems and metals get distinct visual identity.
+ * Used so ruby = red family, sapphire = blue family, tin = gray, etc.
+ */
+const KNOWN_HUE_BY_ENTITY_ID: Record<string, number> = {
+  ruby: 0,
+  sapphire: 220,
+  emerald: 120,
+  diamond: 200,
+  amethyst: 280,
+  amber: 45,
+  tin: 30,
+  raw_tin: 30,
+  copper: 25,
+  raw_copper: 25,
+  iron: 0,
+  raw_iron: 0,
+  gold: 45,
+  raw_gold: 45,
+  silver: 0,
+  coal: 0,
+  lead: 0,
+  nickel: 45,
+  zinc: 45,
+};
+
+/** Deterministic hue (0–360) from entity id; uses known map or hash fallback. */
+export function getTargetHueFromEntityId(entityId: string): number {
+  const normalized = entityId.toLowerCase().replace(/\s+/g, "_");
+  if (KNOWN_HUE_BY_ENTITY_ID[normalized] !== undefined) {
+    return KNOWN_HUE_BY_ENTITY_ID[normalized];
+  }
+  return hashString(normalized) % 360;
+}
+
+/** RGB 0–255 -> H 0–360, S 0–1, V 0–1 */
+function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  const v = max;
+  const s = max === 0 ? 0 : d / max;
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = 60 * (((g - b) / d) % 6);
+    else if (max === g) h = 60 * ((b - r) / d + 2);
+    else h = 60 * ((r - g) / d + 4);
+    if (h < 0) h += 360;
+  }
+  return [h, s, v];
+}
+
+/** H 0–360, S 0–1, V 0–1 -> R,G,B 0–255 */
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  h = ((h % 360) + 360) % 360;
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) {
+    r = c; g = x; b = 0;
+  } else if (h < 120) {
+    r = x; g = c; b = 0;
+  } else if (h < 180) {
+    r = 0; g = c; b = x;
+  } else if (h < 240) {
+    r = 0; g = x; b = c;
+  } else if (h < 300) {
+    r = x; g = 0; b = c;
+  } else {
+    r = c; g = 0; b = x;
+  }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+/**
+ * Apply semantic color theme from entity id: shift hue toward a deterministic target
+ * (e.g. ruby -> red, sapphire -> blue) so textures are perceptually distinct.
+ * strength in 0..1: how much to pull pixel hue toward target (default 0.45).
+ */
+export function applySemanticColorTheme(buffer: Buffer, relPath: string, strength: number = 0.45): Buffer {
+  const rgba = ensurePngRgba(buffer);
+  const decoded = decodePngRaw(rgba);
+  if (!decoded || (decoded.colorType !== 2 && decoded.colorType !== 6)) return rgba;
+  const { width, height, colorType, raw } = decoded;
+  const rowSize = colorType === 6 ? 1 + width * 4 : 1 + width * 3;
+  const bpp = colorType === 6 ? 4 : 3;
+  const entityId = entityIdFromRelPath(relPath);
+  const targetHue = getTargetHueFromEntityId(entityId);
+  const targetSat = 0.6;
+  const outRows = Buffer.alloc(height * (1 + width * 4));
+  for (let y = 0; y < height; y++) {
+    outRows[y * (1 + width * 4)] = 0;
+    for (let x = 0; x < width; x++) {
+      const i = y * rowSize + 1 + x * bpp;
+      const r = raw[i] ?? 0;
+      const g = raw[i + 1] ?? 0;
+      const b = raw[i + 2] ?? 0;
+      const a = bpp === 4 ? (raw[i + 3] ?? 255) : 255;
+      const [h, s, v] = rgbToHsv(r, g, b);
+      const blend = v > 0.05 ? strength : 0;
+      const newH = blend ? (h + (targetHue - h) * blend) % 360 : h;
+      const newS = Math.min(1, s * (1 - blend * 0.3) + targetSat * blend * 0.3);
+      const [nr, ng, nb] = hsvToRgb(newH < 0 ? newH + 360 : newH, newS, v);
+      const o = y * (1 + width * 4) + 1 + x * 4;
+      outRows[o] = nr;
+      outRows[o + 1] = ng;
+      outRows[o + 2] = nb;
+      outRows[o + 3] = a;
+    }
+  }
+  return encodeRawRgbaToPng(width, height, outRows);
+}
+
 /**
  * Apply deterministic per-entity variation so the same source never produces byte-identical output for different paths.
  * Decodes PNG to raw RGBA, tweaks at least one pixel based on relPath (hue/brightness), re-encodes.

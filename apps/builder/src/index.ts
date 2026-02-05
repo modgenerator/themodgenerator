@@ -41,7 +41,7 @@ import {
 import { validateSpec, validateModSpecV2, validateRecipes, validateSpecHygiene, validateGeneratedRecipeJson } from "@themodgenerator/validator";
 import { uploadFile } from "@themodgenerator/gcp";
 import { generateOpaquePng16x16WithProfile } from "./texture-png.js";
-import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba, applyPerEntityVariation } from "./texture-validation.js";
+import { validateTexturePngFile, perceptualFingerprint, ensurePngRgba, applyPerEntityVariation, applySemanticColorTheme } from "./texture-validation.js";
 import { getVanillaTextureBuffer, logVanillaAssetsPackAtStartup, type VanillaAssetsSource } from "./vanilla-asset-source.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
 import {
@@ -136,6 +136,32 @@ export interface WriteMaterializedFilesOptions {
 }
 
 /**
+ * Ensure buffer has a perceptual fingerprint not in seen set; retry with stronger theme/variation up to maxAttempts.
+ * Uses same algorithm as validator (perceptualFingerprint). Mutates seen set.
+ */
+function ensurePerceptuallyUnique(
+  buffer: Buffer,
+  relPath: string,
+  seenFingerprints: Set<string>,
+  maxAttempts: number,
+  applyTheme: (buf: Buffer, path: string, strength?: number) => Buffer,
+  applyVariation: (buf: Buffer, path: string) => Buffer
+): Buffer {
+  let current = buffer;
+  let fp = perceptualFingerprint(current);
+  let attempt = 0;
+  while (fp != null && seenFingerprints.has(fp) && attempt < maxAttempts) {
+    const strength = Math.min(0.95, 0.45 + attempt * 0.12);
+    current = applyTheme(current, relPath, strength);
+    current = applyVariation(current, `${relPath}-perceptual-retry-${attempt}`);
+    fp = perceptualFingerprint(current);
+    attempt++;
+  }
+  if (fp != null) seenFingerprints.add(fp);
+  return current;
+}
+
+/**
  * Write Plane 3 materialized files to workDir. Creates parent dirs as needed.
  * If a .png has copyFromVanillaPaths, copies from VANILLA_ASSETS_SOURCE (client_jar or bundled_pack); fail loud if source not set or not found.
  * Otherwise .png with empty contents gets a 32x32 opaque PNG (material color + noise + motifs when profile present).
@@ -158,6 +184,9 @@ async function writeMaterializedFiles(
     vanillaSource = raw;
   }
 
+  const MAX_PERCEPTUAL_ATTEMPTS = 5;
+  const seenPerceptualFingerprints = new Set<string>();
+
   for (const file of files) {
     const { path: relPath, contents, placeholderMaterial, colorHint, texturePrompt, copyFromVanillaPaths } = file;
     const fullPath = join(workDir, relPath);
@@ -170,7 +199,9 @@ async function writeMaterializedFiles(
         bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
       });
       buffer = ensurePngRgba(buffer);
+      buffer = applySemanticColorTheme(buffer, relPath);
       buffer = applyPerEntityVariation(buffer, relPath);
+      buffer = ensurePerceptuallyUnique(buffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
       writeFileSync(fullPath, buffer);
     } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
@@ -186,12 +217,16 @@ async function writeMaterializedFiles(
         textureProfile: profile ?? undefined,
       });
       let rgbaBuffer = ensurePngRgba(pngBuffer);
+      rgbaBuffer = applySemanticColorTheme(rgbaBuffer, relPath);
       rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
+      rgbaBuffer = ensurePerceptuallyUnique(rgbaBuffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
       writeFileSync(fullPath, rgbaBuffer);
       if (profile) textureMetaByPath.set(relPath, { motifsApplied, materialClassApplied });
     } else if (relPath.endsWith(".png") && contents.length > 0 && /^[A-Za-z0-9+/=]+$/.test(contents.trim())) {
       let rgbaBuffer = ensurePngRgba(Buffer.from(contents, "base64"));
+      rgbaBuffer = applySemanticColorTheme(rgbaBuffer, relPath);
       rgbaBuffer = applyPerEntityVariation(rgbaBuffer, relPath);
+      rgbaBuffer = ensurePerceptuallyUnique(rgbaBuffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
       writeFileSync(fullPath, rgbaBuffer);
     } else {
       writeFileSync(fullPath, contents, "utf8");

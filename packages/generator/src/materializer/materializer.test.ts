@@ -10,7 +10,7 @@ import assert from "node:assert";
 import type { ModSpecV1 } from "@themodgenerator/spec";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { composeTier1Stub } from "../composer-stub.js";
-import { materializeTier1, materializeTier1WithPlans, recipeDataFiles } from "./index.js";
+import { materializeTier1, materializeTier1WithPlans, recipeDataFiles, fabricScaffoldFiles } from "./index.js";
 import { planFromIntent } from "../execution-plan.js";
 
 function minimalTier1Spec(overrides: Partial<ModSpecV1> = {}): ModSpecV1 {
@@ -116,6 +116,9 @@ describe("materializeTier1 golden tests", () => {
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/models\/block\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/assets\/[a-z0-9_]+\/blockstates\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/recipe\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/minecraft\/tags\/(items|blocks)\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/minecraft\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/[a-z0-9_]+\/loot_tables\/blocks\/[a-z0-9_]+\.json$/,
     ];
     for (const f of files) {
       const matched = allowedPathPatterns.some((p) => p.test(f.path));
@@ -406,5 +409,53 @@ describe("materializer invariants", () => {
     const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
     assert.ok(recipeIds.includes("maple_planks_from_log"));
     assert.ok(recipeIds.includes("maple_boat"));
+  });
+
+  it("wood type Maple: vanilla tag integration (planks, logs, mineable/axe) and loot tables", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const planksTag = files.find((f) => f.path.includes("data/minecraft/tags/items/planks.json"));
+    assert.ok(planksTag, "must generate minecraft tags/items/planks.json");
+    const planksData = JSON.parse(planksTag!.contents) as { replace: boolean; values: string[] };
+    assert.strictEqual(planksData.replace, false, "planks tag must use replace: false to merge with vanilla");
+    assert.ok(
+      planksData.values.some((v) => v.includes("maple_planks")),
+      "planks tag must include maple_planks so vanilla stick recipe accepts it"
+    );
+
+    const axeTag = files.find((f) => f.path.includes("data/minecraft/tags/blocks/mineable/axe.json"));
+    assert.ok(axeTag, "must generate minecraft tags/blocks/mineable/axe.json");
+    const axeData = JSON.parse(axeTag!.contents) as { values: string[] };
+    assert.ok(axeData.values.some((v) => v.includes("maple_log")), "mineable/axe must include maple_log");
+    assert.ok(axeData.values.some((v) => v.includes("maple_planks")), "mineable/axe must include maple_planks");
+
+    const lootMaplePlanks = files.find((f) => f.path.includes("loot_tables/blocks/maple_planks.json"));
+    assert.ok(lootMaplePlanks, "must generate loot table for maple_planks so survival break drops item");
+    const lootData = JSON.parse(lootMaplePlanks!.contents) as { type: string; pools: unknown[] };
+    assert.strictEqual(lootData.type, "minecraft:block");
+    assert.ok(lootData.pools.length >= 1);
+  });
+
+  it("wood type Maple: block registration uses strength and BlockSoundGroup.WOOD (no insta-break)", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const scaffold = fabricScaffoldFiles(expanded);
+    const javaFile = scaffold.find((f) => f.path.endsWith(".java"));
+    assert.ok(javaFile, "must generate Mod main Java");
+    assert.ok(
+      javaFile!.contents.includes("strength(2.0f, 3.0f)"),
+      "wood blocks must have strength so they do not insta-break"
+    );
+    assert.ok(
+      javaFile!.contents.includes("BlockSoundGroup.WOOD"),
+      "wood blocks must have wood sound group"
+    );
   });
 });

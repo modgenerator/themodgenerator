@@ -135,6 +135,21 @@ function toJavaId(id: string): string {
   return id.replace(/-/g, "_");
 }
 
+/** Wood family block id suffixes (must match expand-wood-type). */
+const WOOD_BLOCK_SUFFIXES = [
+  "_log", "_stripped_log", "_wood", "_stripped_wood", "_planks", "_stairs", "_slab",
+  "_fence", "_fence_gate", "_door", "_trapdoor", "_pressure_plate", "_button", "_sign", "_hanging_sign",
+];
+
+function isWoodBlock(blockId: string, woodIds: string[]): boolean {
+  return woodIds.some((w) => WOOD_BLOCK_SUFFIXES.some((s) => blockId === w + s));
+}
+
+/** AbstractBlock.Settings for wood-like blocks: hardness 2, resistance 3, wood sounds. */
+function woodBlockSettings(): string {
+  return "AbstractBlock.Settings.create().strength(2.0f, 3.0f).sounds(BlockSoundGroup.WOOD)";
+}
+
 /** Generate Java that adds registered items to the INGREDIENTS creative tab so they appear in-game. */
 function creativeTabItems(itemIds: string[]): string {
   if (itemIds.length === 0) return "";
@@ -168,10 +183,13 @@ function modMainJava(
       return `		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${item.id}"), new ${itemClassName}(new Item.Settings()));`;
     })
     .join("\n");
+  const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
   const blockLines: string[] = [];
   for (const block of expanded.blocks) {
     const varName = toJavaId(block.id) + "Block";
-    blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(AbstractBlock.Settings.create()));`);
+    const useWoodSettings = woodIds.length > 0 && isWoodBlock(block.id, woodIds);
+    const settings = useWoodSettings ? woodBlockSettings() : "AbstractBlock.Settings.create()";
+    blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
     blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
   }
   const blockRegistrations = blockLines.join("\n");
@@ -185,6 +203,7 @@ function modMainJava(
     "import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
+    "import net.minecraft.sound.BlockSoundGroup;",
     "import net.minecraft.item.BlockItem;",
     "import net.minecraft.item.Item;",
     "import net.minecraft.item.ItemGroups;",

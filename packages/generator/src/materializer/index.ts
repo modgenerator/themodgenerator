@@ -33,6 +33,8 @@ import type { FabricMaterializerTier1, MaterializedFile } from "./types.js";
 import { assetKeysToFiles } from "./asset-mapping.js";
 import { fabricScaffoldFiles } from "./fabric-scaffold.js";
 import { recipeDataFiles } from "./recipe-generator.js";
+import { woodTagDataFiles } from "./wood-tags.js";
+import { woodLootTableFiles } from "./wood-loot-tables.js";
 import { behaviorFilesFromPlans } from "./behavior-generator.js";
 import { enrichTextureFilesWithVisualMetadata } from "./visual-enrichment.js";
 import { calculateCredits } from "../execution-plan.js";
@@ -50,7 +52,9 @@ export function materializeTier1(
   const scaffold = fabricScaffoldFiles(expanded);
   const assetFiles = assetKeysToFiles(expanded, assets);
   const recipeFiles = recipeDataFiles(expanded);
-  const all = [...scaffold, ...assetFiles, ...recipeFiles];
+  const woodTags = woodTagDataFiles(expanded);
+  const woodLoot = woodLootTableFiles(expanded);
+  const all = [...scaffold, ...assetFiles, ...recipeFiles, ...woodTags, ...woodLoot];
   return all.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -72,7 +76,9 @@ export function materializeTier1WithPlans(
   assetFiles = enrichTextureFilesWithVisualMetadata(assetFiles, expanded, visualLevel);
   const behaviorFiles = behaviorFilesFromPlans(expanded, itemPlans);
   const recipeFiles = recipeDataFiles(expanded);
-  const all = [...scaffold, ...assetFiles, ...behaviorFiles, ...recipeFiles];
+  const woodTags = woodTagDataFiles(expanded);
+  const woodLoot = woodLootTableFiles(expanded);
+  const all = [...scaffold, ...assetFiles, ...behaviorFiles, ...recipeFiles, ...woodTags, ...woodLoot];
   return all.sort((a, b) => a.path.localeCompare(b.path));
 }
 

@@ -1,11 +1,38 @@
 // ---- HARD START DEBUG ----
+/** Tracks last completed step for failure diagnostics. */
+let currentStep = "startup";
+
+function fatalExit(reason: string, error?: unknown): never {
+  console.error("BUILDER FATAL ERROR");
+  console.error(reason);
+  if (error !== undefined && error !== null) {
+    console.error(error instanceof Error ? error.message : String(error));
+    if (error instanceof Error && error.stack) {
+      console.error(error.stack);
+    }
+  }
+  console.error("Last completed step:", currentStep);
+  console.error("Exiting with code 1");
+  process.exit(1);
+}
+
 process.on("uncaughtException", (err) => {
-  console.error("UNCAUGHT_EXCEPTION", err);
+  console.error("BUILDER FATAL ERROR");
+  console.error("UNCAUGHT_EXCEPTION");
+  console.error(err instanceof Error ? err.message : String(err));
+  console.error(err instanceof Error && err.stack ? err.stack : "(no stack)");
+  console.error("Last completed step:", currentStep);
+  console.error("Exiting with code 1");
   process.exit(1);
 });
 
 process.on("unhandledRejection", (err) => {
-  console.error("UNHANDLED_REJECTION", err);
+  console.error("BUILDER FATAL ERROR");
+  console.error("UNHANDLED_REJECTION");
+  console.error(err instanceof Error ? err.message : String(err));
+  console.error(err instanceof Error && err.stack ? err.stack : "(no stack)");
+  console.error("Last completed step:", currentStep);
+  console.error("Exiting with code 1");
   process.exit(1);
 });
 
@@ -65,14 +92,14 @@ console.log("FILES IN apps/builder/dist:", existsSync("apps/builder/dist")
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
-    console.error(`[BUILDER] FATAL: ${name} environment variable is required but not set`);
-    process.exit(1);
+    fatalExit(`[BUILDER] FATAL: ${name} environment variable is required but not set`);
   }
   return value;
 }
 
 // Validate required environment variables at startup
 console.log("[BUILDER] Validating environment variables...");
+currentStep = "env_validation";
 const JOB_ID: string = requireEnv("JOB_ID");
 const DATABASE_URL: string = requireEnv("DATABASE_URL");
 const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
@@ -80,8 +107,7 @@ const GCS_BUCKET: string = requireEnv("GCS_BUCKET");
 /** Require MODE=build. Only execution path is real build → JAR upload → completed. */
 function requireModeBuild(): void {
   if (process.env.MODE !== "build") {
-    console.error("[BUILDER] FATAL: MODE must be 'build'. Got:", process.env.MODE);
-    process.exit(1);
+    fatalExit(`[BUILDER] FATAL: MODE must be 'build'. Got: ${process.env.MODE}`);
   }
 }
 
@@ -344,18 +370,20 @@ async function runGradle(
 
 async function main(): Promise<void> {
   requireModeBuild();
+  currentStep = "mode_checked";
   const buildId = JOB_ID;
   console.log(`[BUILDER] buildId=${buildId} main started (build mode only)`);
   console.log(`[BUILDER] buildId=${buildId} connecting to database`);
   const pool = getPool(DATABASE_URL);
+  currentStep = "database_connected";
   console.log(`[BUILDER] buildId=${buildId} database pool created`);
-  
+
   console.log(`[BUILDER] buildId=${buildId} fetching job`);
   const job = await getJobById(pool, JOB_ID);
   if (!job) {
-    console.error(`[BUILDER] buildId=${buildId} FATAL: job not found`);
-    process.exit(1);
+    fatalExit(`[BUILDER] buildId=${buildId} FATAL: job not found`);
   }
+  currentStep = "job_fetched";
   await logPhase(pool, buildId, "prompt_parsed");
   console.log(`[BUILDER] buildId=${buildId} job found status=${job.status}`);
   
@@ -368,15 +396,16 @@ async function main(): Promise<void> {
   
   let logContent = "";
   try {
+    currentStep = "work_dir_created";
     console.log("[BUILDER] Creating work directory...");
     mkdirSync(workDir, { recursive: true });
     console.log("[BUILDER] Work directory created");
     
     let specToUse = job.spec_json as Parameters<typeof expandSpecTier1>[0];
     if (!specToUse) {
-      console.error("[BUILDER] FATAL: Missing spec_json in job");
+      currentStep = "spec_check";
       await updateJob(pool, JOB_ID, { status: "failed", rejection_reason: "Missing spec_json" });
-      process.exit(1);
+      fatalExit("[BUILDER] FATAL: Missing spec_json in job");
     }
     await logPhase(pool, buildId, "spec_generated");
 
@@ -387,14 +416,14 @@ async function main(): Promise<void> {
       const v2Validation = validateModSpecV2(expandedV2);
       if (!v2Validation.valid) {
         const msg = v2Validation.errors.join("; ");
-        console.error(`[BUILDER] buildId=${buildId} ModSpecV2 validation failed:`, msg);
+        currentStep = "modspec_v2_validation";
         await updateJob(pool, JOB_ID, {
           status: "failed",
           rejection_reason: `ModSpecV2 validation: ${msg}`,
           current_phase: "failed",
           phase_updated_at: new Date(),
         });
-        process.exit(1);
+        fatalExit(`[BUILDER] buildId=${buildId} ModSpecV2 validation failed: ${msg}`);
       }
       await logPhase(pool, buildId, "validated");
       specToUse = expandedModSpecV2ToV1(expandedV2);
@@ -405,26 +434,26 @@ async function main(): Promise<void> {
       const validation = validateSpec(specToUse, { prompt: job.prompt, specForRecipeValidation });
       if (!validation.valid) {
         const msg = [validation.gate, validation.reason].filter(Boolean).join(": ");
-        console.error(`[BUILDER] buildId=${buildId} Spec validation failed: ${msg}`);
+        currentStep = "spec_validation";
         await updateJob(pool, JOB_ID, {
           status: "failed",
           rejection_reason: `Validation (${validation.gate}): ${validation.reason ?? "invalid spec"}`,
           current_phase: "failed",
           phase_updated_at: new Date(),
         });
-        process.exit(1);
+        fatalExit(`[BUILDER] buildId=${buildId} Spec validation failed: ${msg}`);
       }
       const hygieneCheck = validateSpecHygiene(specToUse);
       if (!hygieneCheck.valid) {
         const msg = hygieneCheck.errors.join("; ");
-        console.error(`[BUILDER] buildId=${buildId} Spec hygiene failed: ${msg}`);
+        currentStep = "spec_hygiene";
         await updateJob(pool, JOB_ID, {
           status: "failed",
           rejection_reason: `Spec hygiene: ${msg}`,
           current_phase: "failed",
           phase_updated_at: new Date(),
         });
-        process.exit(1);
+        fatalExit(`[BUILDER] buildId=${buildId} Spec hygiene failed: ${msg}`);
       }
     }
 
@@ -516,6 +545,7 @@ async function main(): Promise<void> {
       validateNoDuplicateTextures(files, workDir);
       validateNoPerceptuallyIdenticalTextures(files, workDir);
       copyFabricWrapperTo(workDir);
+      currentStep = "materialized_pre_gradle";
       await logPhase(pool, buildId, "compiled");
       console.log("[BUILDER] Tier 1 project written; Gradle wrapper copied");
 
@@ -533,11 +563,12 @@ async function main(): Promise<void> {
         600000,
         buildId
       );
+      currentStep = "gradle_completed";
       console.log(`[BUILDER] Gradle build completed successfully (exit code: ${buildResult.exitCode})`);
       logContent = `Build succeeded.\n\nSTDOUT:\n${buildResult.stdout}\n\nSTDERR:\n${buildResult.stderr}`;
       writeFileSync(logPath, logContent, "utf8");
     } catch (gradleErr: unknown) {
-      console.error("[BUILDER] FATAL: Gradle build failed");
+      currentStep = "gradle_failed";
       const errorMsg = gradleErr instanceof Error ? gradleErr.message : String(gradleErr);
       logContent = `Gradle build failed: ${errorMsg}\n\nSTDOUT:\n${(gradleErr as { stdout?: string })?.stdout ?? ""}\n\nSTDERR:\n${(gradleErr as { stderr?: string })?.stderr ?? ""}`;
       writeFileSync(logPath, logContent, "utf8");
@@ -551,15 +582,14 @@ async function main(): Promise<void> {
         rejection_reason: `Gradle build failed: ${errorMsg}`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      console.error(`[BUILDER] buildId=${buildId} phase=failed exiting`);
-      process.exit(1);
+      fatalExit(`[BUILDER] FATAL: Gradle build failed: ${errorMsg}`, gradleErr);
     }
     console.log(`[BUILDER] buildId=${buildId} looking for JAR`);
     const jarDir = join(workDir, "build", "libs");
     const jars = readdirSync(jarDir).filter((f) => f.endsWith(".jar") && !f.includes("-sources"));
     const jarFile = jars[0];
     if (!jarFile) {
-      console.error(`[BUILDER] buildId=${buildId} FATAL: no jar in build/libs`);
+      currentStep = "no_jar_produced";
       logContent = "No jar produced";
       writeFileSync(logPath, logContent, "utf8");
       const logKey = `logs/${JOB_ID}/build.log`;
@@ -572,8 +602,9 @@ async function main(): Promise<void> {
         rejection_reason: "No jar produced",
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      process.exit(1);
+      fatalExit(`[BUILDER] buildId=${buildId} FATAL: no jar in build/libs`);
     }
+    currentStep = "jar_found";
     console.log(`[BUILDER] buildId=${buildId} jar=${jarFile}`);
     const jarPath = join(jarDir, jarFile);
     const modId = (specToUse as { modId?: string }).modId ?? "generated";
@@ -588,7 +619,7 @@ async function main(): Promise<void> {
     }
     const hasRecipes = jarList.split(/\r?\n/).some((line) => line.startsWith(recipesPrefix));
     if (specRecipes.length > 0 && !hasRecipes) {
-      console.error(`[BUILDER] buildId=${buildId} JAR missing ${recipesPrefix}; failing job`);
+      currentStep = "jar_missing_recipes";
       const logKey = `logs/${JOB_ID}/build.log`;
       logContent = `Build produced JAR but missing required data: ${recipesPrefix}`;
       writeFileSync(logPath, logContent, "utf8");
@@ -601,7 +632,7 @@ async function main(): Promise<void> {
         rejection_reason: `JAR is missing data/${modId}/recipe/. Spec requires recipes but directory not found in JAR.`,
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
-      process.exit(1);
+      fatalExit(`[BUILDER] buildId=${buildId} JAR missing ${recipesPrefix}; failing job`);
     }
     const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;
@@ -610,6 +641,7 @@ async function main(): Promise<void> {
     await uploadFile(jarPath, { bucket: GCS_BUCKET, destination: artifactKey, contentType: "application/java-archive" });
     writeFileSync(logPath, "Build succeeded.\n", "utf8");
     await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+    currentStep = "uploaded";
     await logPhase(pool, buildId, "uploaded");
     await updateJob(pool, JOB_ID, {
       status: "succeeded",
@@ -622,11 +654,6 @@ async function main(): Promise<void> {
     });
     console.log(`[BUILDER] buildId=${buildId} phase=completed status=succeeded (spec persisted)`);
   } catch (err) {
-    console.error(`[BUILDER] buildId=${buildId} FATAL: unhandled exception`, err);
-    if (err instanceof Error) {
-      console.error(`[BUILDER] buildId=${buildId} stack:`, err.stack);
-    }
-    
     logContent += (err instanceof Error ? err.stack : String(err)) + "\n";
     let logKey: string | null = null;
     try {
@@ -636,7 +663,7 @@ async function main(): Promise<void> {
     } catch (uploadErr) {
       console.error(`[BUILDER] buildId=${buildId} failed to upload error log:`, uploadErr);
     }
-    
+
     try {
       await updateJob(pool, JOB_ID, {
         status: "failed",
@@ -649,8 +676,8 @@ async function main(): Promise<void> {
     } catch (updateErr) {
       console.error(`[BUILDER] buildId=${buildId} failed to update job:`, updateErr);
     }
-    
-    process.exit(1);
+
+    fatalExit(`[BUILDER] buildId=${buildId} FATAL: unhandled exception (pre-Gradle or post-Gradle)`, err);
   } finally {
     try {
       console.log(`[BUILDER] buildId=${buildId} cleaning up workDir`);
@@ -670,10 +697,5 @@ main()
     process.exit(0);
   })
   .catch((err) => {
-    console.error("[BUILDER] Main function rejected:", err);
-    if (err instanceof Error) {
-      console.error("[BUILDER] Rejection stack:", err.stack);
-    }
-    console.error("[BUILDER] Exiting with code 1: Main function rejected");
-    process.exit(1);
+    fatalExit("[BUILDER] Main function rejected", err);
   });

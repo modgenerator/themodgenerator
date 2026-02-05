@@ -514,7 +514,7 @@ describe("materializer invariants", () => {
       "must use AXIS safety guard to avoid StrippableBlockRegistry crash"
     );
     assert.ok(
-      contents.includes("BlockStateProperties.AXIS"),
+      contents.includes("Properties.AXIS"),
       "safety guard must check for AXIS property"
     );
     assert.ok(

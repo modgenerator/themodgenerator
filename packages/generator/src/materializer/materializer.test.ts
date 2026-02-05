@@ -441,9 +441,18 @@ describe("materializer invariants", () => {
     const lootData = JSON.parse(lootMaplePlanks!.contents) as { type: string; pools: unknown[] };
     assert.strictEqual(lootData.type, "minecraft:block");
     assert.ok(lootData.pools.length >= 1);
+
+    // All wood-family blocks must have loot tables so survival break drops correctly
+    const woodBlockIds = expanded.blocks
+      .filter((b) => expanded.spec.woodTypes?.some((w) => b.id.startsWith(w.id + "_")))
+      .map((b) => b.id);
+    for (const blockId of woodBlockIds) {
+      const lootFile = files.find((f) => f.path.includes(`loot_tables/blocks/${blockId}.json`));
+      assert.ok(lootFile, `must generate loot table for wood block ${blockId} so survival break drops item`);
+    }
   });
 
-  it("wood type Maple: block registration uses strength and BlockSoundGroup.WOOD (no insta-break)", () => {
+  it("wood type Maple: block registration uses strength, BlockSoundGroup.WOOD, burnable (no dropsNothing)", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -451,14 +460,12 @@ describe("materializer invariants", () => {
     const scaffold = fabricScaffoldFiles(expanded);
     const javaFile = scaffold.find((f) => f.path.endsWith(".java") && !f.path.includes("StrippablePlanks"));
     assert.ok(javaFile, "must generate Mod main Java");
-    assert.ok(
-      javaFile!.contents.includes("strength(2.0f, 3.0f)"),
-      "wood blocks must have strength so they do not insta-break"
-    );
-    assert.ok(
-      javaFile!.contents.includes("BlockSoundGroup.WOOD"),
-      "wood blocks must have wood sound group"
-    );
+    const contents = javaFile!.contents;
+    assert.ok(contents.includes("strength(2.0f, 3.0f)"), "wood blocks must have strength so they do not insta-break");
+    assert.ok(contents.includes("BlockSoundGroup.WOOD"), "wood blocks must have wood sound group");
+    assert.ok(contents.includes("burnable()"), "wood blocks must be burnable (vanilla-equivalent)");
+    assert.ok(!contents.includes("dropsNothing"), "wood blocks must NOT call dropsNothing (loot tables must apply)");
+    assert.ok(!contents.includes("noDrops"), "wood blocks must NOT call noDrops");
   });
 
   it("wood type Maple: planks tag under mod namespace, no stripped_planks in tag", () => {

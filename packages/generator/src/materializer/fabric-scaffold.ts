@@ -152,9 +152,13 @@ function isLogOrWoodBlock(blockId: string, woodIds: string[]): boolean {
   return woodIds.some((w) => LOG_OR_WOOD_SUFFIXES.some((s) => blockId === w + s));
 }
 
-/** AbstractBlock.Settings for wood-like blocks: hardness 2, resistance 3, wood sounds. */
+/**
+ * AbstractBlock.Settings for wood blocks: vanilla-equivalent (hardness, resistance, sounds, burnable).
+ * Loot table resolved by block registry ID (data/<modId>/loot_tables/blocks/<block_id>.json).
+ * Never calls dropsNothing or noDrops.
+ */
 function woodBlockSettings(): string {
-  return "AbstractBlock.Settings.create().strength(2.0f, 3.0f).sounds(BlockSoundGroup.WOOD)";
+  return "AbstractBlock.Settings.create().strength(2.0f, 3.0f).sounds(BlockSoundGroup.WOOD).burnable()";
 }
 
 /** Generate Java that adds registered items to the INGREDIENTS creative tab so they appear in-game. */

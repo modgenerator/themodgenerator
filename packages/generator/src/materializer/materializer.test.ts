@@ -411,7 +411,7 @@ describe("materializer invariants", () => {
     assert.ok(recipeIds.includes("maple_boat"));
   });
 
-  it("wood type Maple: tags under mod namespace (no data/minecraft/tags), loot tables", () => {
+  it("wood type Maple: tags under mod namespace, #minecraft:planks merge, loot tables", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -419,8 +419,15 @@ describe("materializer invariants", () => {
     const assets = composeTier1Stub(expanded.descriptors);
     const files = materializeTier1(expanded, assets);
 
-    const minecraftTagFiles = files.filter((f) => f.path.includes("data/minecraft/tags/"));
-    assert.strictEqual(minecraftTagFiles.length, 0, "must NOT generate any data/minecraft/tags (pack priority safe)");
+    // Additive merge into #minecraft:planks so vanilla wooden tools work (replace: false)
+    const minecraftPlanksTag = files.find((f) => f.path === "src/main/resources/data/minecraft/tags/items/planks.json");
+    assert.ok(minecraftPlanksTag, "must generate data/minecraft/tags/items/planks.json for #minecraft:planks merge");
+    const minecraftPlanksData = JSON.parse(minecraftPlanksTag!.contents) as { replace?: boolean; values: string[] };
+    assert.strictEqual(minecraftPlanksData.replace, false, "must use replace:false so additive merge (not overwrite vanilla tag)");
+    assert.ok(
+      minecraftPlanksData.values.some((v) => v === "test_mod:maple_planks"),
+      "must include test_mod:maple_planks in #minecraft:planks for vanilla recipes"
+    );
 
     const planksTag = files.find((f) => f.path.includes("data/test_mod/tags/items/planks.json"));
     assert.ok(planksTag, "must generate mod-namespace tags/items/planks.json");
@@ -450,6 +457,26 @@ describe("materializer invariants", () => {
       const lootFile = files.find((f) => f.path.includes(`loot_tables/blocks/${blockId}.json`));
       assert.ok(lootFile, `must generate loot table for wood block ${blockId} so survival break drops item`);
     }
+  });
+
+  it("wood type Maple with modId generated: data/minecraft/tags/items/planks.json in output (jar-level)", () => {
+    const spec = minimalTier1Spec({
+      modId: "generated",
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const minecraftPlanksTag = files.find((f) => f.path === "src/main/resources/data/minecraft/tags/items/planks.json");
+    assert.ok(minecraftPlanksTag, "FINAL output must include data/minecraft/tags/items/planks.json (in JAR resources)");
+    const data = JSON.parse(minecraftPlanksTag!.contents) as { replace?: boolean; values: string[] };
+    assert.strictEqual(data.replace, false, "replace must be false for additive merge");
+    assert.ok(
+      data.values.includes("generated:maple_planks"),
+      "must contain generated:maple_planks for /execute if items #minecraft:planks"
+    );
+    // Runtime sanity: holding generated:maple_planks, /execute if items entity @s weapon.mainhand #minecraft:planks run say TAG_OK should print TAG_OK
   });
 
   it("wood type Maple: block registration uses strength, BlockSoundGroup.WOOD, burnable (no dropsNothing)", () => {

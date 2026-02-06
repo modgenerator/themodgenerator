@@ -1,9 +1,9 @@
 /**
- * Data-pack tag files for generated wood under OUR mod namespace only.
- * We do NOT write to data/minecraft/tags/** so other packs (e.g. fabric-convention-tags-v2)
- * cannot override our entries. Vanilla-equivalent crafting uses our own recipes (sticks,
- * crafting table, chest) that reference our planks directly.
- * Path: src/main/resources/data/<modId>/tags/...
+ * Data-pack tag files for generated wood.
+ * - Mod namespace: data/<modId>/tags/... (our planks, logs, mineable/axe).
+ * - Vanilla merge: data/minecraft/tags/items/planks.json with replace:false to add our
+ *   planks to #minecraft:planks so vanilla wooden tools etc. work. Never use replace:true.
+ * Path: src/main/resources/data/...
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -94,6 +94,13 @@ export function woodTagDataFiles(expanded: ExpandedSpecTier1): MaterializedFile[
     files.push({
       path: `${tagBase}/items/planks.json`,
       contents: JSON.stringify({ replace: false, values: [...planksItems].sort() }, null, 2),
+    });
+    // Add our planks to #minecraft:planks so vanilla wooden tools work. Merge-safe (replace: false).
+    // Runtime: /execute if items entity @s weapon.mainhand #minecraft:planks run say TAG_OK succeeds when holding generated:maple_planks.
+    const planksItemIds = [...planksItems].sort();
+    files.push({
+      path: `${DATA_BASE}/minecraft/tags/items/planks.json`,
+      contents: JSON.stringify({ replace: false, values: planksItemIds }, null, 2),
     });
   }
   if (planksBlocks.size > 0) {

@@ -126,6 +126,7 @@ describe("materializeTier1 golden tests", () => {
       /^src\/main\/resources\/data\/[a-z0-9_]+\/recipe\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/(items|blocks)\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/minecraft\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/loot_tables\/blocks\/[a-z0-9_]+\.json$/,
     ];
     for (const f of files) {
@@ -450,6 +451,12 @@ describe("materializer invariants", () => {
     assert.ok(axeData.values.some((v) => v.includes("maple_log")), "mineable/axe must include maple_log");
     assert.ok(axeData.values.some((v) => v.includes("maple_planks")), "mineable/axe must include maple_planks");
 
+    const minecraftAxeTag = files.find((f) => f.path === "src/main/resources/data/minecraft/tags/blocks/mineable/axe.json");
+    assert.ok(minecraftAxeTag, "must generate data/minecraft/tags/blocks/mineable/axe.json for mining speed + tool");
+    const minecraftAxeData = JSON.parse(minecraftAxeTag!.contents) as { replace?: boolean; values: string[] };
+    assert.strictEqual(minecraftAxeData.replace, false);
+    assert.ok(minecraftAxeData.values.some((v) => v.includes("maple_planks")), "mineable/axe must include wood blocks");
+
     const lootMaplePlanks = files.find((f) => f.path.includes("loot_tables/blocks/maple_planks.json"));
     assert.ok(lootMaplePlanks, "must generate loot table for maple_planks so survival break drops item");
     const lootData = JSON.parse(lootMaplePlanks!.contents) as { type: string; pools: unknown[] };
@@ -486,7 +493,7 @@ describe("materializer invariants", () => {
     // Runtime sanity: holding generated:maple_planks, /execute if items entity @s weapon.mainhand #minecraft:planks run say TAG_OK should print TAG_OK
   });
 
-  it("wood type Maple: block registration uses strength, BlockSoundGroup.WOOD, burnable (no dropsNothing)", () => {
+  it("wood type Maple: block registration uses Settings.copy(vanilla) for mining speed/tool/hardness (no dropsNothing)", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -495,9 +502,7 @@ describe("materializer invariants", () => {
     const javaFile = scaffold.find((f) => f.path.endsWith(".java") && !f.path.includes("StrippablePlanks"));
     assert.ok(javaFile, "must generate Mod main Java");
     const contents = javaFile!.contents;
-    assert.ok(contents.includes("strength(2.0f, 3.0f)"), "wood blocks must have strength so they do not insta-break");
-    assert.ok(contents.includes("BlockSoundGroup.WOOD"), "wood blocks must have wood sound group");
-    assert.ok(contents.includes("burnable()"), "wood blocks must be burnable (vanilla-equivalent)");
+    assert.ok(contents.includes("Settings.copy(Blocks.OAK"), "wood blocks must copy vanilla settings for mining speed/tool");
     assert.ok(!contents.includes("dropsNothing"), "wood blocks must NOT call dropsNothing (loot tables must apply)");
     assert.ok(!contents.includes("noDrops"), "wood blocks must NOT call noDrops");
   });
@@ -523,7 +528,7 @@ describe("materializer invariants", () => {
     );
   });
 
-  it("wood type Maple: log and wood are PillarBlock (AXIS for StrippableBlockRegistry)", () => {
+  it("wood type Maple: log/wood PillarBlock, planks Block, door DoorBlock, stairs StairsBlock", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -539,6 +544,10 @@ describe("materializer invariants", () => {
     }
     const planksRegLine = contents.split("\n").find((l) => l.includes('"maple_planks"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(planksRegLine?.includes("new Block(") && !planksRegLine.includes("PillarBlock"), "maple_planks must be Block not PillarBlock");
+    const doorRegLine = contents.split("\n").find((l) => l.includes('"maple_door"') && l.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(doorRegLine?.includes("DoorBlock"), "maple_door must be DoorBlock");
+    const stairsRegLine = contents.split("\n").find((l) => l.includes('"maple_stairs"') && l.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(stairsRegLine?.includes("StairsBlock"), "maple_stairs must be StairsBlock");
   });
 
   it("wood type Maple: StrippableBlockRegistry only for log and wood (registerStrippableIfHasAxis)", () => {
@@ -634,6 +643,30 @@ describe("materializer invariants", () => {
       () => validateWoodBlocksHaveLootTables(expanded, files),
       "all wood blocks must have loot tables"
     );
+  });
+
+  it("wood type Maple: door and trapdoor have multipart blockstate and _bottom/_top models", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const doorBlockstate = files.find((f) => f.path.includes("blockstates/maple_door.json"));
+    assert.ok(doorBlockstate, "must generate door blockstate");
+    const doorBs = JSON.parse(doorBlockstate!.contents) as { multipart?: unknown[] };
+    assert.ok(Array.isArray(doorBs.multipart) && doorBs.multipart.length >= 2, "door blockstate must be multipart");
+
+    const doorBottomModel = files.find((f) => f.path.includes("models/block/maple_door_bottom.json"));
+    assert.ok(doorBottomModel, "must generate door_bottom model");
+    const doorTopModel = files.find((f) => f.path.includes("models/block/maple_door_top.json"));
+    assert.ok(doorTopModel, "must generate door_top model");
+
+    const trapdoorBlockstate = files.find((f) => f.path.includes("blockstates/maple_trapdoor.json"));
+    assert.ok(trapdoorBlockstate, "must generate trapdoor blockstate");
+    const trapBs = JSON.parse(trapdoorBlockstate!.contents) as { multipart?: unknown[] };
+    assert.ok(Array.isArray(trapBs.multipart) && trapBs.multipart.length >= 2, "trapdoor blockstate must be multipart");
   });
 
   it("CI validator: wood recipes include tools, barrel, bowl, shield", () => {

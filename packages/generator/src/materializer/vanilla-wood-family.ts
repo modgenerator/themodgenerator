@@ -1,7 +1,10 @@
 /**
  * Single source of truth for vanilla wood family generation.
- * All wood-related blocks/items/recipes/resources use this template.
- * NO dropsNothing / noDrops / custom drop overrides.
+ * CRITICAL: Correct block classes + Settings.copy(vanilla) so:
+ * - Mining speed scales with tool tier
+ * - Correct tool (axe) is applied
+ * - Hardness/resistance match vanilla
+ * - Loot tables apply (NO dropsNothing, NO getDroppedStacks override)
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -48,55 +51,31 @@ export type WoodBlockClass =
 export interface WoodBlockSpec {
   suffix: WoodBlockSuffix;
   blockClass: WoodBlockClass;
-  /** Java expression for block registration (e.g. "new Block(settings)"). */
+  /** Java expression for block registration. Use PLACEHOLDER_SETTINGS for settings, PLACEHOLDER_PLANKS for planks var. */
   javaCtor: string;
+  /** Vanilla block for Settings.copy() - REQUIRED for mining speed/tool/hardness. */
+  vanillaBlock: string;
   /** Needs vanilla-style multipart blockstate (door, trapdoor). */
   needsMultipartBlockstate: boolean;
 }
 
-/** Vanilla oak block for Settings.copy() - same for all wood types. */
-const OAK_BY_SUFFIX: Record<string, string> = {
-  _planks: "Blocks.OAK_PLANKS",
-  _log: "Blocks.OAK_LOG",
-  _stripped_log: "Blocks.STRIPPED_OAK_LOG",
-  _wood: "Blocks.OAK_WOOD",
-  _stripped_wood: "Blocks.STRIPPED_OAK_WOOD",
-  _stairs: "Blocks.OAK_STAIRS",
-  _slab: "Blocks.OAK_SLAB",
-  _fence: "Blocks.OAK_FENCE",
-  _fence_gate: "Blocks.OAK_FENCE_GATE",
-  _door: "Blocks.OAK_DOOR",
-  _trapdoor: "Blocks.OAK_TRAPDOOR",
-  _button: "Blocks.OAK_BUTTON",
-  _pressure_plate: "Blocks.OAK_PRESSURE_PLATE",
-  _sign: "Blocks.OAK_SIGN",
-  _hanging_sign: "Blocks.OAK_HANGING_SIGN",
-};
-
-/** Settings expression - AbstractBlock.Settings.copy(oak) for wood blocks. Never dropsNothing. */
-function woodSettings(suffix: string): string {
-  const oak = OAK_BY_SUFFIX[suffix];
-  if (oak) return `AbstractBlock.Settings.copy(${oak})`;
-  return "AbstractBlock.Settings.create().strength(2.0f, 3.0f).sounds(BlockSoundGroup.WOOD).burnable()";
-}
-
-/** Block specs: suffix → class + Java constructor. Doors/trapdoors need multipart blockstate. */
+/** Block specs: correct vanilla classes + Settings.copy(oak). NO dropsNothing ever. */
 export const WOOD_BLOCK_SPECS: WoodBlockSpec[] = [
-  { suffix: "_planks", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_log", blockClass: "PillarBlock", javaCtor: "new PillarBlock(settings)", needsMultipartBlockstate: false },
-  { suffix: "_stripped_log", blockClass: "PillarBlock", javaCtor: "new PillarBlock(settings)", needsMultipartBlockstate: false },
-  { suffix: "_wood", blockClass: "PillarBlock", javaCtor: "new PillarBlock(settings)", needsMultipartBlockstate: false },
-  { suffix: "_stripped_wood", blockClass: "PillarBlock", javaCtor: "new PillarBlock(settings)", needsMultipartBlockstate: false },
-  { suffix: "_stairs", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_slab", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_fence", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_fence_gate", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_door", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: true },
-  { suffix: "_trapdoor", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: true },
-  { suffix: "_pressure_plate", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_button", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_sign", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
-  { suffix: "_hanging_sign", blockClass: "Block", javaCtor: "new Block(settings)", needsMultipartBlockstate: false },
+  { suffix: "_planks", blockClass: "Block", javaCtor: "new Block(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_PLANKS", needsMultipartBlockstate: false },
+  { suffix: "_log", blockClass: "PillarBlock", javaCtor: "new PillarBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_LOG", needsMultipartBlockstate: false },
+  { suffix: "_stripped_log", blockClass: "PillarBlock", javaCtor: "new PillarBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.STRIPPED_OAK_LOG", needsMultipartBlockstate: false },
+  { suffix: "_wood", blockClass: "PillarBlock", javaCtor: "new PillarBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_WOOD", needsMultipartBlockstate: false },
+  { suffix: "_stripped_wood", blockClass: "PillarBlock", javaCtor: "new PillarBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.STRIPPED_OAK_WOOD", needsMultipartBlockstate: false },
+  { suffix: "_stairs", blockClass: "StairsBlock", javaCtor: "new StairsBlock(PLACEHOLDER_PLANKS.getDefaultState(), PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_STAIRS", needsMultipartBlockstate: false },
+  { suffix: "_slab", blockClass: "SlabBlock", javaCtor: "new SlabBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_SLAB", needsMultipartBlockstate: false },
+  { suffix: "_fence", blockClass: "FenceBlock", javaCtor: "new FenceBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_FENCE", needsMultipartBlockstate: false },
+  { suffix: "_fence_gate", blockClass: "FenceGateBlock", javaCtor: "new FenceGateBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_FENCE_GATE", needsMultipartBlockstate: false },
+  { suffix: "_door", blockClass: "DoorBlock", javaCtor: "new DoorBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_DOOR", needsMultipartBlockstate: true },
+  { suffix: "_trapdoor", blockClass: "TrapdoorBlock", javaCtor: "new TrapdoorBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_TRAPDOOR", needsMultipartBlockstate: true },
+  { suffix: "_pressure_plate", blockClass: "PressurePlateBlock", javaCtor: "new PressurePlateBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_PRESSURE_PLATE", needsMultipartBlockstate: false },
+  { suffix: "_button", blockClass: "ButtonBlock", javaCtor: "new ButtonBlock(BlockSetType.OAK, 30, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_BUTTON", needsMultipartBlockstate: false },
+  { suffix: "_sign", blockClass: "Block", javaCtor: "new Block(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_SIGN", needsMultipartBlockstate: false },
+  { suffix: "_hanging_sign", blockClass: "Block", javaCtor: "new Block(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_HANGING_SIGN", needsMultipartBlockstate: false },
 ];
 
 const SPEC_BY_SUFFIX = new Map(WOOD_BLOCK_SPECS.map((s) => [s.suffix, s]));
@@ -118,13 +97,22 @@ export function isLogOrWoodBlock(blockId: string, woodIds: string[]): boolean {
   return woodIds.some((w) => LOG_OR_WOOD_SUFFIXES.some((s) => blockId === w + s));
 }
 
-/** Java block registration line for a wood block. */
+/** Resolve planks block var name for a wood type (e.g. maple_planks -> maple_planksBlock). */
+function planksVarFor(woodId: string): string {
+  return (woodId + "_planks").replace(/-/g, "_") + "Block";
+}
+
+/** Java block registration line for a wood block. Uses Settings.copy(vanilla) and correct block classes. */
 export function woodBlockRegistrationJava(blockId: string, woodIds: string[]): { varName: string; line: string } | null {
   const spec = getWoodBlockSpec(blockId, woodIds);
   if (!spec) return null;
   const varName = blockId.replace(/-/g, "_") + "Block";
-  const settings = woodSettings(spec.suffix);
-  const ctor = spec.javaCtor.replace("settings", settings);
+  const settings = `AbstractBlock.Settings.copy(${spec.vanillaBlock})`;
+  const woodId = woodIds.find((w) => blockId.startsWith(w + "_"));
+  const planksVar = woodId ? planksVarFor(woodId) : "null";
+  const ctor = spec.javaCtor
+    .replace("PLACEHOLDER_SETTINGS", settings)
+    .replace("PLACEHOLDER_PLANKS", planksVar);
   return {
     varName,
     line: `Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${blockId}"), ${ctor});`,

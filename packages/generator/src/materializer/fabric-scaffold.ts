@@ -9,6 +9,7 @@ import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import type { MaterializedFile } from "./types.js";
 import type { ExecutionPlan } from "../execution-plan.js";
 import { getItemClassNameForRegistration } from "./behavior-generator.js";
+import { woodBlockRegistrationJava } from "./vanilla-wood-family.js";
 
 function toClassName(s: string): string {
   return s
@@ -135,30 +136,11 @@ function toJavaId(id: string): string {
   return id.replace(/-/g, "_");
 }
 
-/** Wood family block id suffixes (must match expand-wood-type). */
-const WOOD_BLOCK_SUFFIXES = [
-  "_log", "_stripped_log", "_wood", "_stripped_wood", "_planks",
-  "_stairs", "_slab", "_fence", "_fence_gate", "_door", "_trapdoor", "_pressure_plate", "_button", "_sign", "_hanging_sign",
-];
-
-/** Log/wood blocks only (must be PillarBlock for StrippableBlockRegistry AXIS requirement). */
-const LOG_OR_WOOD_SUFFIXES = ["_log", "_stripped_log", "_wood", "_stripped_wood"] as const;
-
-function isWoodBlock(blockId: string, woodIds: string[]): boolean {
-  return woodIds.some((w) => WOOD_BLOCK_SUFFIXES.some((s) => blockId === w + s));
-}
-
-function isLogOrWoodBlock(blockId: string, woodIds: string[]): boolean {
-  return woodIds.some((w) => LOG_OR_WOOD_SUFFIXES.some((s) => blockId === w + s));
-}
-
 /**
- * AbstractBlock.Settings for wood blocks: vanilla-equivalent (hardness, resistance, sounds, burnable).
- * Loot table resolved by block registry ID (data/<modId>/loot_tables/blocks/<block_id>.json).
- * Never calls dropsNothing or noDrops.
+ * AbstractBlock.Settings for non-wood blocks. Wood blocks use vanilla-wood-family (Settings.copy(vanilla)).
  */
-function woodBlockSettings(): string {
-  return "AbstractBlock.Settings.create().strength(2.0f, 3.0f).sounds(BlockSoundGroup.WOOD).burnable()";
+function defaultBlockSettings(): string {
+  return "AbstractBlock.Settings.create()";
 }
 
 /** Generate Java that adds registered items to the INGREDIENTS creative tab so they appear in-game. */
@@ -198,11 +180,13 @@ function modMainJava(
   const blockLines: string[] = [];
   for (const block of expanded.blocks) {
     const varName = toJavaId(block.id) + "Block";
-    const useWoodSettings = woodIds.length > 0 && isWoodBlock(block.id, woodIds);
-    const settings = useWoodSettings ? woodBlockSettings() : "AbstractBlock.Settings.create()";
-    const usePillarBlock = woodIds.length > 0 && isLogOrWoodBlock(block.id, woodIds);
-    const blockCtor = usePillarBlock ? "PillarBlock" : "Block";
-    blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new ${blockCtor}(${settings}));`);
+    const woodReg = woodIds.length > 0 ? woodBlockRegistrationJava(block.id, woodIds) : null;
+    if (woodReg) {
+      blockLines.push(`		${woodReg.line}`);
+    } else {
+      const settings = defaultBlockSettings();
+      blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
+    }
     blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
   }
   const blockRegistrations = blockLines.join("\n");
@@ -232,9 +216,18 @@ function modMainJava(
     "import net.fabricmc.fabric.api.registry.StrippableBlockRegistry;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
+    "import net.minecraft.block.BlockSetType;",
+    "import net.minecraft.block.ButtonBlock;",
+    "import net.minecraft.block.DoorBlock;",
+    "import net.minecraft.block.FenceBlock;",
+    "import net.minecraft.block.FenceGateBlock;",
     "import net.minecraft.block.PillarBlock;",
+    "import net.minecraft.block.PressurePlateBlock;",
+    "import net.minecraft.block.SlabBlock;",
+    "import net.minecraft.block.StairsBlock;",
+    "import net.minecraft.block.TrapdoorBlock;",
+    "import net.minecraft.block.Blocks;",
     "import net.minecraft.state.property.Properties;",
-    "import net.minecraft.sound.BlockSoundGroup;",
     "import net.minecraft.item.BlockItem;",
     "import net.minecraft.item.Item;",
     "import net.minecraft.item.ItemGroups;",

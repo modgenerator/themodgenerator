@@ -130,6 +130,11 @@ export function woodTagDataFiles(expanded: ExpandedSpecTier1): MaterializedFile[
       path: `${tagBase}/blocks/mineable/axe.json`,
       contents: JSON.stringify({ replace: false, values: mineableAxe }, null, 2),
     });
+    // Additive merge into data/minecraft so mining speed + tool (axe) work correctly
+    files.push({
+      path: `${DATA_BASE}/minecraft/tags/blocks/mineable/axe.json`,
+      contents: JSON.stringify({ replace: false, values: mineableAxe }, null, 2),
+    });
   }
 
   return files.sort((a, b) => a.path.localeCompare(b.path));

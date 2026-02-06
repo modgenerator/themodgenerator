@@ -18,6 +18,14 @@ import {
   ARCHETYPES,
 } from "../canonical-interpretation.js";
 import { resolveVanillaVisualDefaults } from "../materialization/vanilla-visual-defaults.js";
+import {
+  doorBlockstateJson,
+  trapdoorBlockstateJson,
+  doorModelBottom,
+  doorModelTop,
+  trapdoorModelBottom,
+  trapdoorModelTop,
+} from "./wood-blockstates.js";
 
 const ITEM_PREFIX = "item/";
 const BLOCK_PREFIX = "block/";
@@ -312,19 +320,55 @@ export function assetKeysToFiles(
       }),
       ...meta,
     });
-    files.push({
-      path: `${baseAssets}/models/block/${id}.json`,
-      contents: blockModelJson(modId, id, vanillaDefault?.modelParent),
-    });
-    files.push({
-      path: `${baseAssets}/blockstates/${id}.json`,
-      contents: blockstateJson(`${modId}:block/${id}`),
-    });
-    // Block-as-item: item model references block model (no separate item texture; block texture is used).
+    const isDoor = expanded.spec.woodTypes?.some((w) => id === w.id + "_door");
+    const isTrapdoor = expanded.spec.woodTypes?.some((w) => id === w.id + "_trapdoor");
+
+    if (isDoor) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}_bottom.json`,
+        contents: doorModelBottom(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_top.json`,
+        contents: doorModelTop(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: doorBlockstateJson(modId, id),
+      });
+    } else if (isTrapdoor) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}_bottom.json`,
+        contents: trapdoorModelBottom(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_top.json`,
+        contents: trapdoorModelTop(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: trapdoorBlockstateJson(modId, id),
+      });
+    } else {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: blockModelJson(modId, id, vanillaDefault?.modelParent),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: blockstateJson(`${modId}:block/${id}`),
+      });
+    }
+    // Block-as-item: item model references block model. Door/trapdoor use bottom half.
     if (!itemIds.includes(id)) {
+      const itemModelParent = isDoor || isTrapdoor
+        ? `${modId}:block/${id}_bottom`
+        : undefined;
       files.push({
         path: `${baseAssets}/models/item/${id}.json`,
-        contents: blockAsItemModelJson(modId, id),
+        contents: itemModelParent
+          ? `{\n  "parent": "${itemModelParent}"\n}\n`
+          : blockAsItemModelJson(modId, id),
       });
     }
   }

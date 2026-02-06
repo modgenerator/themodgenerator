@@ -31,8 +31,7 @@ const WOOD_FAMILY_MEMBERS: ReadonlyArray<{
   { idSuffix: "_button", displaySuffix: " Button", kind: "both", material: "wood" },
   { idSuffix: "_sign", displaySuffix: " Sign", kind: "both", material: "wood" },
   { idSuffix: "_hanging_sign", displaySuffix: " Hanging Sign", kind: "both", material: "wood" },
-  { idSuffix: "_boat", displaySuffix: " Boat", kind: "item", material: "wood" },
-  { idSuffix: "_chest_boat", displaySuffix: " Chest Boat", kind: "item", material: "wood" },
+  // Boat/chest_boat omitted until entity+renderer implemented
 ];
 
 export interface WoodExpansionResult {
@@ -199,19 +198,62 @@ export function woodRecipesFromWoodTypes(woodTypes: WoodType[]): ModRecipe[] {
       key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
       result: { id: `${woodId}_hanging_sign`, count: 6 },
     });
+    // Vanilla-equivalent recipes using generated planks only (no #minecraft:planks)
     recipes.push({
-      id: `${woodId}_boat`,
+      id: `wooden_sword_from_${woodId}_planks`,
       type: "crafting_shaped",
-      pattern: ["# #", "###"],
-      key: { "#": { id: planks } },
-      result: { id: `${woodId}_boat`, count: 1 },
+      pattern: [" # ", " # ", " - "],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:wooden_sword", count: 1 },
     });
     recipes.push({
-      id: `${woodId}_chest_boat`,
+      id: `wooden_pickaxe_from_${woodId}_planks`,
       type: "crafting_shaped",
-      pattern: ["C", "B"],
-      key: { C: { id: "minecraft:chest" }, B: { id: `${woodId}_boat` } },
-      result: { id: `${woodId}_chest_boat`, count: 1 },
+      pattern: ["###", " - ", " - "],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:wooden_pickaxe", count: 1 },
+    });
+    recipes.push({
+      id: `wooden_axe_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["##", "#-", " -"],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:wooden_axe", count: 1 },
+    });
+    recipes.push({
+      id: `wooden_shovel_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: [" # ", " - ", " - "],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:wooden_shovel", count: 1 },
+    });
+    recipes.push({
+      id: `wooden_hoe_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["##", " -", " -"],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:wooden_hoe", count: 1 },
+    });
+    recipes.push({
+      id: `barrel_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["#-#", "# #", "#-#"],
+      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      result: { id: "minecraft:barrel", count: 1 },
+    });
+    recipes.push({
+      id: `bowl_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["# #", " # "],
+      key: { "#": { id: planks } },
+      result: { id: "minecraft:bowl", count: 4 },
+    });
+    recipes.push({
+      id: `shield_from_${woodId}_planks`,
+      type: "crafting_shaped",
+      pattern: ["#-#", "###", " - "],
+      key: { "#": { id: planks }, "-": { id: "minecraft:iron_ingot" } },
+      result: { id: "minecraft:shield", count: 1 },
     });
   }
   return recipes;

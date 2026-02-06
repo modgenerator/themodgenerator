@@ -62,12 +62,11 @@ describe("expandSpecTier1", () => {
     assert.ok(woodBlockIds.includes("maple_planks"));
     assert.ok(woodBlockIds.includes("maple_stairs"));
     assert.ok(woodItemIds.includes("maple_log"));
-    assert.ok(woodItemIds.includes("maple_boat"));
     assert.strictEqual(expanded.descriptors.filter((d) => d.type === "handheld_item").length, expanded.items.length);
     assert.strictEqual(expanded.descriptors.filter((d) => d.type === "cube_block").length, expanded.blocks.length);
   });
 
-  it("woodTypes add vanilla-style recipes (log→planks, stairs, slab, boat, chest_boat, etc.)", () => {
+  it("woodTypes add vanilla-style recipes (log→planks, stairs, slab, wooden tools, barrel, shield, etc.)", () => {
     const spec = minimalSpec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -87,11 +86,14 @@ describe("expandSpecTier1", () => {
     assert.ok(recipeIds.includes("maple_pressure_plate"));
     assert.ok(recipeIds.includes("maple_sign"));
     assert.ok(recipeIds.includes("maple_hanging_sign"));
-    assert.ok(recipeIds.includes("maple_boat"));
-    assert.ok(recipeIds.includes("maple_chest_boat"));
+    assert.ok(recipeIds.includes("wooden_sword_from_maple_planks"));
+    assert.ok(recipeIds.includes("wooden_pickaxe_from_maple_planks"));
+    assert.ok(recipeIds.includes("barrel_from_maple_planks"));
+    assert.ok(recipeIds.includes("bowl_from_maple_planks"));
+    assert.ok(recipeIds.includes("shield_from_maple_planks"));
   });
 
-  it("woodTypes expansion yields full maple_* family (log, wood, stripped, planks, stairs, slab, fence, door, boat, etc.)", () => {
+  it("woodTypes expansion yields full maple_* family (log, wood, stripped, planks, stairs, slab, fence, door, etc.)", () => {
     const spec = minimalSpec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -113,8 +115,6 @@ describe("expandSpecTier1", () => {
       "maple_pressure_plate",
       "maple_sign",
       "maple_hanging_sign",
-      "maple_boat",
-      "maple_chest_boat",
     ];
     for (const id of expected) {
       assert.ok(allIds.includes(id), `expansion must include ${id}`);

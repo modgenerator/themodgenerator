@@ -6,36 +6,9 @@
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import type { MaterializedFile } from "./types.js";
+import { isWoodBlock } from "./vanilla-wood-family.js";
 
 const DATA_BASE = "src/main/resources/data";
-
-/** Wood family block id suffixes (block-only or both; matches expand-wood-type). */
-const WOOD_BLOCK_SUFFIXES = [
-  "_log",
-  "_stripped_log",
-  "_wood",
-  "_stripped_wood",
-  "_planks",
-  "_stairs",
-  "_slab",
-  "_fence",
-  "_fence_gate",
-  "_door",
-  "_trapdoor",
-  "_pressure_plate",
-  "_button",
-  "_sign",
-  "_hanging_sign",
-] as const;
-
-function isWoodBlockId(blockId: string, woodIds: string[]): boolean {
-  for (const woodId of woodIds) {
-    for (const suffix of WOOD_BLOCK_SUFFIXES) {
-      if (blockId === woodId + suffix) return true;
-    }
-  }
-  return false;
-}
 
 /** One pool, one entry: drop self. */
 function dropSelfLootTable(modId: string, blockId: string): string {
@@ -120,7 +93,7 @@ export function woodLootTableFiles(expanded: ExpandedSpecTier1): MaterializedFil
 
   const files: MaterializedFile[] = [];
   for (const block of expanded.blocks) {
-    if (!isWoodBlockId(block.id, woodIds)) continue;
+    if (!isWoodBlock(block.id, woodIds)) continue;
     const isSlab = woodIds.some((w) => block.id === w + "_slab");
     const contents = isSlab ? slabLootTable(modId, block.id) : dropSelfLootTable(modId, block.id);
     files.push({

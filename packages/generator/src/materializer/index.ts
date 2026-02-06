@@ -96,3 +96,9 @@ export {
   getItemClassNameForRegistration,
 } from "./behavior-generator.js";
 export { recipeDataFiles } from "./recipe-generator.js";
+export {
+  validateNoMinecraftPlanksInRecipes,
+  validateWoodBlocksHaveLootTables,
+  validateWoodRecipeCoverage,
+  getWoodBlocksNeedingMultipartBlockstate,
+} from "./validators.js";

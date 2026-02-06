@@ -10,7 +10,15 @@ import assert from "node:assert";
 import type { ModSpecV1 } from "@themodgenerator/spec";
 import { expandSpecTier1 } from "@themodgenerator/spec";
 import { composeTier1Stub } from "../composer-stub.js";
-import { materializeTier1, materializeTier1WithPlans, recipeDataFiles, fabricScaffoldFiles } from "./index.js";
+import {
+  materializeTier1,
+  materializeTier1WithPlans,
+  recipeDataFiles,
+  fabricScaffoldFiles,
+  validateNoMinecraftPlanksInRecipes,
+  validateWoodBlocksHaveLootTables,
+  validateWoodRecipeCoverage,
+} from "./index.js";
 import { planFromIntent } from "../execution-plan.js";
 
 function minimalTier1Spec(overrides: Partial<ModSpecV1> = {}): ModSpecV1 {
@@ -405,10 +413,9 @@ describe("materializer invariants", () => {
     assert.ok(woodBlockIds.includes("maple_log"));
     assert.ok(woodBlockIds.includes("maple_planks"));
     assert.ok(woodBlockIds.includes("maple_stairs"));
-    assert.ok(woodBlockIds.includes("maple_boat") === false, "boat is item-only");
     const recipeIds = (expanded.spec.recipes ?? []).map((r) => r.id);
     assert.ok(recipeIds.includes("maple_planks_from_log"));
-    assert.ok(recipeIds.includes("maple_boat"));
+    assert.ok(recipeIds.includes("wooden_sword_from_maple_planks"), "wooden tools from generated planks");
   });
 
   it("wood type Maple: tags under mod namespace, #minecraft:planks merge, loot tables", () => {
@@ -566,7 +573,7 @@ describe("materializer invariants", () => {
     assert.ok(!invocationLines.some((l) => l.includes("planks") || l.includes("stairs")), "strippable only for log and wood");
   });
 
-  it("wood type Maple: vanilla-equivalent recipes (sticks, crafting table, chest) from our planks", () => {
+  it("wood type Maple: vanilla-equivalent recipes (sticks, crafting table, chest, wooden tools, barrel, shield) from our planks", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -589,5 +596,56 @@ describe("materializer invariants", () => {
     assert.ok(chestRecipe, "must generate chest_from_maple_planks recipe");
     const chestData = JSON.parse(chestRecipe!.contents) as { result?: { id?: string } };
     assert.strictEqual(chestData.result?.id, "minecraft:chest");
+
+    assert.ok(files.some((f) => f.path.includes("recipe/wooden_sword_from_maple_planks.json")), "wooden sword recipe");
+    assert.ok(files.some((f) => f.path.includes("recipe/barrel_from_maple_planks.json")), "barrel recipe");
+    assert.ok(files.some((f) => f.path.includes("recipe/shield_from_maple_planks.json")), "shield recipe");
+    assert.ok(files.some((f) => f.path.includes("recipe/bowl_from_maple_planks.json")), "bowl recipe");
+  });
+
+  it("CI validator: no recipe references #minecraft:planks", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    assert.doesNotThrow(
+      () => validateNoMinecraftPlanksInRecipes(files),
+      "generated recipes must not use #minecraft:planks"
+    );
+    // Verify validator would fail on bad content
+    const badFiles = [{ path: "src/main/resources/data/test_mod/recipe/bad.json", contents: '{"ingredient":{"tag":"#minecraft:planks"}}' }];
+    assert.throws(
+      () => validateNoMinecraftPlanksInRecipes(badFiles),
+      /#minecraft:planks/,
+      "validator must throw when recipe references #minecraft:planks"
+    );
+  });
+
+  it("CI validator: wood blocks have loot tables", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    assert.doesNotThrow(
+      () => validateWoodBlocksHaveLootTables(expanded, files),
+      "all wood blocks must have loot tables"
+    );
+  });
+
+  it("CI validator: wood recipes include tools, barrel, bowl, shield", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    assert.doesNotThrow(
+      () => validateWoodRecipeCoverage(expanded, files),
+      "wood types must have wooden tools, barrel, bowl, shield recipes"
+    );
   });
 });

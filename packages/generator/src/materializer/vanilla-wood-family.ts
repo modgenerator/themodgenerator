@@ -69,7 +69,7 @@ export const WOOD_BLOCK_SPECS: WoodBlockSpec[] = [
   { suffix: "_stairs", blockClass: "StairsBlock", javaCtor: "new StairsBlock(PLACEHOLDER_PLANKS.getDefaultState(), PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_STAIRS", needsMultipartBlockstate: false },
   { suffix: "_slab", blockClass: "SlabBlock", javaCtor: "new SlabBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_SLAB", needsMultipartBlockstate: false },
   { suffix: "_fence", blockClass: "FenceBlock", javaCtor: "new FenceBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_FENCE", needsMultipartBlockstate: false },
-  { suffix: "_fence_gate", blockClass: "FenceGateBlock", javaCtor: "new FenceGateBlock(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_FENCE_GATE", needsMultipartBlockstate: false },
+  { suffix: "_fence_gate", blockClass: "FenceGateBlock", javaCtor: "new FenceGateBlock(WoodType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_FENCE_GATE", needsMultipartBlockstate: false },
   { suffix: "_door", blockClass: "DoorBlock", javaCtor: "new DoorBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_DOOR", needsMultipartBlockstate: true },
   { suffix: "_trapdoor", blockClass: "TrapdoorBlock", javaCtor: "new TrapdoorBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_TRAPDOOR", needsMultipartBlockstate: true },
   { suffix: "_pressure_plate", blockClass: "PressurePlateBlock", javaCtor: "new PressurePlateBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_PRESSURE_PLATE", needsMultipartBlockstate: false },

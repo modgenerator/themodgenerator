@@ -548,6 +548,8 @@ describe("materializer invariants", () => {
     assert.ok(doorRegLine?.includes("DoorBlock"), "maple_door must be DoorBlock");
     const stairsRegLine = contents.split("\n").find((l) => l.includes('"maple_stairs"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(stairsRegLine?.includes("StairsBlock"), "maple_stairs must be StairsBlock");
+    const fenceGateRegLine = contents.split("\n").find((l) => l.includes('"maple_fence_gate"') && l.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(fenceGateRegLine?.includes("WoodType.OAK") && fenceGateRegLine?.includes("FenceGateBlock"), "maple_fence_gate must be FenceGateBlock(WoodType.OAK, settings)");
   });
 
   it("wood type Maple: StrippableBlockRegistry only for log and wood (registerStrippableIfHasAxis)", () => {

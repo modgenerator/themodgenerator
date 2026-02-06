@@ -226,6 +226,7 @@ function modMainJava(
     "import net.minecraft.block.SlabBlock;",
     "import net.minecraft.block.StairsBlock;",
     "import net.minecraft.block.TrapdoorBlock;",
+    "import net.minecraft.block.WoodType;",
     "import net.minecraft.block.Blocks;",
     "import net.minecraft.state.property.Properties;",
     "import net.minecraft.item.BlockItem;",

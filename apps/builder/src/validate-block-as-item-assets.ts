@@ -1,8 +1,12 @@
 /**
  * Fail the job if any block is missing block-as-item model.
  * Required: assets/<modId>/models/item/<blockId>.json
- * Block-as-item model MUST reference block model: { "parent": "<modId>:block/<blockId>" } (no separate texture).
- * If model uses layer0 instead, the referenced texture file must exist.
+ *
+ * Accepts two valid patterns:
+ * Pattern A (preferred): parent "minecraft:item/generated" + textures.layer0 "<modid>:block/<textureId>"
+ *   - Referenced texture must exist at textures/block/<textureId>.png
+ * Pattern B (legacy): parent "<modId>:block/<blockId>"
+ *   - Block model must exist at models/block/<blockId>.json (or _bottom for door/trapdoor)
  */
 
 import type { MaterializedFile } from "@themodgenerator/generator";
@@ -15,8 +19,8 @@ export function validateBlockAsItemAssets(
   modId: string
 ): void {
   const filePaths = new Set(files.map((f) => f.path));
-  const texturePaths = new Set(
-    files.filter((f) => f.path.includes("textures/item/") && f.path.endsWith(".png")).map((f) => f.path)
+  const blockTexturePaths = new Set(
+    files.filter((f) => f.path.includes("textures/block/") && f.path.endsWith(".png")).map((f) => f.path)
   );
   const blockModelPaths = new Set(
     files.filter((f) => f.path.includes("models/block/") && f.path.endsWith(".json")).map((f) => f.path)
@@ -38,39 +42,42 @@ export function validateBlockAsItemAssets(
     try {
       const json = JSON.parse(modelFile.contents) as { parent?: string; textures?: { layer0?: string } };
       const parent = json.parent;
-      if (typeof parent === "string") {
-        const expectedParent = `${modId}:block/${blockId}`;
-        if (parent !== expectedParent) {
-          throw new Error(
-            `Block-as-item validation failed: blockId "${blockId}" item model must have "parent": "${expectedParent}" (got "${parent}")`
-          );
-        }
-        const expectedBlockModel = `${ASSETS_PREFIX}/${modId}/models/block/${blockId}.json`;
-        if (!blockModelPaths.has(expectedBlockModel)) {
-          throw new Error(
-            `Block-as-item validation failed: blockId "${blockId}" references block model but file is missing: ${expectedBlockModel}`
-          );
-        }
-        continue;
-      }
       const layer0 = json.textures?.layer0;
-      if (typeof layer0 === "string") {
-        const match = /^[^:]+:item\/(.+)$/.exec(layer0);
-        const itemId = match?.[1] ?? blockId;
-        const expectedTexture = `${ASSETS_PREFIX}/${modId}/textures/item/${itemId}.png`;
-        if (!texturePaths.has(expectedTexture)) {
+
+      // Pattern A: minecraft:item/generated + layer0 pointing at block texture
+      if (parent === "minecraft:item/generated" && typeof layer0 === "string") {
+        const match = new RegExp(`^${modId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:block/(.+)$`).exec(layer0);
+        if (!match) {
+          throw new Error(
+            `Block-as-item validation failed: blockId "${blockId}" layer0 must be "<modid>:block/<textureId>" (got "${layer0}")`
+          );
+        }
+        const textureId = match[1];
+        const expectedTexture = `${ASSETS_PREFIX}/${modId}/textures/block/${textureId}.png`;
+        if (!blockTexturePaths.has(expectedTexture)) {
           throw new Error(
             `Block-as-item validation failed: blockId "${blockId}" item model references texture "${layer0}" but file is missing: ${expectedTexture}`
           );
         }
-      } else {
-        const expectedTexture = `${ASSETS_PREFIX}/${modId}/textures/item/${blockId}.png`;
-        if (!texturePaths.has(expectedTexture)) {
+        continue;
+      }
+
+      // Pattern B: parent "<modId>:block/<blockId>" (or _bottom for door/trapdoor)
+      if (typeof parent === "string" && parent.startsWith(`${modId}:block/`)) {
+        const modelId = parent.replace(`${modId}:block/`, "");
+        const blockModelPath = `${ASSETS_PREFIX}/${modId}/models/block/${modelId}.json`;
+        const hasModel = blockModelPaths.has(blockModelPath) || filePaths.has(blockModelPath);
+        if (!hasModel) {
           throw new Error(
-            `Block-as-item validation failed: blockId "${blockId}" is missing texture: ${expectedTexture}`
+            `Block-as-item validation failed: blockId "${blockId}" item model references block "${parent}" but file is missing: ${blockModelPath}`
           );
         }
+        continue;
       }
+
+      throw new Error(
+        `Block-as-item validation failed: blockId "${blockId}" item model must use Pattern A (parent "minecraft:item/generated" + layer0 "<modid>:block/<id>") or Pattern B (parent "<modid>:block/<blockId>"). Got parent="${parent ?? "undefined"}"`
+      );
     } catch (err) {
       if (err instanceof SyntaxError) {
         throw new Error(

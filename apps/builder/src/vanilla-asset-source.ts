@@ -175,6 +175,37 @@ async function readEntryFromZip(zipPath: string, entryPath: string): Promise<Buf
 }
 
 /**
+ * Load vanilla texture buffer, trying candidate paths in order. First match wins.
+ * Does NOT fail if one candidate is missing; only fails if none exist.
+ * Logs the resolved path used (one line).
+ * @param source - "client_jar" | "bundled_pack"
+ * @param candidatePaths - paths relative to assets/minecraft/textures, no .png (e.g. ["entity/signs/hanging/oak", "entity/hanging_sign/oak"])
+ * @param options - mcVersion for client_jar; bundledPackRoot for bundled_pack
+ * @param logContext - optional context for log line (e.g. target output path)
+ */
+export async function getVanillaTextureBufferWithFallbacks(
+  source: VanillaAssetsSource,
+  candidatePaths: string[],
+  options: { mcVersion?: string; bundledPackRoot?: string },
+  logContext?: string
+): Promise<Buffer> {
+  const errors: string[] = [];
+  for (const vanillaPath of candidatePaths) {
+    try {
+      const buffer = await getVanillaTextureBuffer(source, vanillaPath, options);
+      const entryPath = jarEntryPath(vanillaPath);
+      console.log(`[VANILLA_ASSETS] Resolved: ${entryPath}${logContext ? ` (for ${logContext})` : ""}`);
+      return buffer;
+    } catch (e) {
+      errors.push(`${vanillaPath}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  throw new Error(
+    `[VANILLA_ASSETS] No candidate texture found. Tried: ${candidatePaths.join(", ")}. ${errors.join("; ")}`
+  );
+}
+
+/**
  * Load vanilla texture buffer from the configured source.
  * @param source - "client_jar" | "bundled_pack"
  * @param vanillaPath - path relative to assets/minecraft/textures, no .png (e.g. "item/iron_ingot")

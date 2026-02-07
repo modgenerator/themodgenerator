@@ -529,7 +529,11 @@ export function assetKeysToFiles(
       files.push({
         path: `${baseAssets}/textures/entity/hanging_sign/${woodId}.png`,
         contents: "",
-        copyFromVanillaPaths: ["entity/hanging_sign/oak"],
+        copyFromVanillaPaths: [
+          "entity/signs/hanging/oak",
+          "entity/hanging_sign/oak",
+          "entity/signs/oak",
+        ],
       });
       files.push({
         path: `${baseAssets}/models/block/${id}.json`,

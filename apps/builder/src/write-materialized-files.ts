@@ -13,7 +13,11 @@ import {
   applyPerEntityVariation,
   applySemanticColorTheme,
 } from "./texture-validation.js";
-import { getVanillaTextureBuffer, type VanillaAssetsSource } from "./vanilla-asset-source.js";
+import {
+  getVanillaTextureBuffer,
+  getVanillaTextureBufferWithFallbacks,
+  type VanillaAssetsSource,
+} from "./vanilla-asset-source.js";
 import { collectVanillaDepsForBlock } from "./vanilla-dep-collector.js";
 
 /** Per-path texture metadata from profile-driven generator (for manifest). */
@@ -102,19 +106,26 @@ export async function writeMaterializedFiles(
         mcVersion: options?.mcVersion ?? process.env.MC_VERSION ?? "1.21.1",
         bundledPackRoot: process.env.VANILLA_ASSETS_PACK,
       };
-      let vanillaPath: string;
+      let buffer: Buffer;
       if (vanillaTemplateBlockId) {
         const deps = await collectVanillaDepsForBlock(vanillaTemplateBlockId, vanillaSource!, opts);
-        vanillaPath = deps.texturePaths[0] ?? copyFromVanillaPaths?.[0] ?? "";
+        const vanillaPath = deps.texturePaths[0] ?? copyFromVanillaPaths?.[0] ?? "";
         if (!vanillaPath) {
           throw new Error(
             `[VANILLA_ASSETS] collectVanillaDepsForBlock("${vanillaTemplateBlockId}") returned no textures for ${relPath}.`
           );
         }
+        buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, opts);
+      } else if (copyFromVanillaPaths!.length > 1) {
+        buffer = await getVanillaTextureBufferWithFallbacks(
+          vanillaSource!,
+          copyFromVanillaPaths!,
+          opts,
+          relPath
+        );
       } else {
-        vanillaPath = copyFromVanillaPaths![0];
+        buffer = await getVanillaTextureBuffer(vanillaSource!, copyFromVanillaPaths![0], opts);
       }
-      let buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, opts);
       buffer = ensurePngRgba(buffer);
       buffer = applySemanticColorTheme(buffer, relPath);
       buffer = applyPerEntityVariation(buffer, relPath);

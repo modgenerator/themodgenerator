@@ -10,8 +10,15 @@ async function getYauzl() {
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** Validate buffer is a valid 16x16 PNG. Throws with descriptive message on failure. */
-function validatePng16x16(buf: Buffer, pathForError: string): void {
+/**
+ * Validate buffer is a valid square door PNG (16x16, 32x32, etc.).
+ * Requires: valid PNG signature, width===height, width % 16 === 0.
+ * Returns { width, height } for dimension comparison across bottom/top.
+ */
+function validatePngSquareDoorTexture(
+  buf: Buffer,
+  pathForError: string
+): { width: number; height: number } {
   if (buf.length < 24) {
     throw new Error(`JAR-GATE: ${pathForError} too small to be valid PNG (${buf.length} bytes)`);
   }
@@ -20,9 +27,13 @@ function validatePng16x16(buf: Buffer, pathForError: string): void {
   }
   const width = buf.readUInt32BE(16);
   const height = buf.readUInt32BE(20);
-  if (width !== 16 || height !== 16) {
-    throw new Error(`JAR-GATE: ${pathForError} must be 16x16 PNG, got ${width}x${height}`);
+  if (width !== height) {
+    throw new Error(`JAR-GATE: ${pathForError} must be square PNG, got ${width}x${height}`);
   }
+  if (width % 16 !== 0 || width < 16) {
+    throw new Error(`JAR-GATE: ${pathForError} dimensions must be 16x16, 32x32, etc. (width % 16 === 0), got ${width}x${height}`);
+  }
+  return { width, height };
 }
 
 /** Read a single entry from a zip (JAR) as Buffer. */
@@ -237,7 +248,7 @@ export async function validateJarGate(
     }
   }
 
-  // 6) Door: bottom/top textures must exist and be valid 16x16 PNGs
+  // 6) Door: bottom/top textures must exist and be valid square PNGs (16x16 or 32x32, etc.), same dimensions
   for (const blockId of blockIds) {
     if (blockId.endsWith("_door")) {
       const bottomPath = `assets/${modId}/textures/block/${blockId}_bottom.png`;
@@ -250,8 +261,13 @@ export async function validateJarGate(
       }
       const bottomBuf = await readZipEntryAsBuffer(jarPath, bottomPath);
       const topBuf = await readZipEntryAsBuffer(jarPath, topPath);
-      validatePng16x16(bottomBuf, bottomPath);
-      validatePng16x16(topBuf, topPath);
+      const bottomDims = validatePngSquareDoorTexture(bottomBuf, bottomPath);
+      const topDims = validatePngSquareDoorTexture(topBuf, topPath);
+      if (bottomDims.width !== topDims.width || bottomDims.height !== topDims.height) {
+        throw new Error(
+          `JAR-GATE: Door ${blockId} bottom and top textures must have same dimensions (${bottomPath} ${bottomDims.width}x${bottomDims.height}, ${topPath} ${topDims.width}x${topDims.height})`
+        );
+      }
     }
   }
 

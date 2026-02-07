@@ -552,6 +552,8 @@ describe("materializer invariants", () => {
     assert.ok(stairsRegLine?.includes("StairsBlock"), "maple_stairs must be StairsBlock");
     const fenceGateRegLine = contents.split("\n").find((l) => l.includes('"maple_fence_gate"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(fenceGateRegLine?.includes("WoodType.OAK") && fenceGateRegLine?.includes("FenceGateBlock"), "maple_fence_gate must be FenceGateBlock(WoodType.OAK, settings)");
+    const hangingSignRegLine = contents.split("\n").find((l) => l.includes('"maple_hanging_sign"') && l.includes("Registry.register(Registries.BLOCK"));
+    assert.ok(hangingSignRegLine?.includes("HangingSignBlock"), "maple_hanging_sign must be HangingSignBlock");
   });
 
   it("wood type Maple: StrippableBlockRegistry only for log and wood (registerStrippableIfHasAxis)", () => {
@@ -584,6 +586,22 @@ describe("materializer invariants", () => {
       .filter((l) => l.includes("registerStrippableIfHasAxis(") && !l.includes("Block input"));
     assert.strictEqual(invocationLines.length, 2, "only log and wood pairs (no planks, stairs, etc.)");
     assert.ok(!invocationLines.some((l) => l.includes("planks") || l.includes("stairs")), "strippable only for log and wood");
+  });
+
+  it("wood type Maple: hanging sign recipe uses chain + stripped_log (vanilla-style)", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const recipeFile = files.find((f) => f.path.includes("recipe/maple_hanging_sign.json"));
+    assert.ok(recipeFile, "must generate maple_hanging_sign recipe");
+    const parsed = JSON.parse(recipeFile!.contents) as { pattern?: string[]; key?: Record<string, { item?: string }>; result?: { id?: string; count?: number } };
+    assert.deepStrictEqual(parsed.pattern, ["A A", "BBB", "BBB"], "hanging sign pattern must be A A / BBB / BBB");
+    assert.strictEqual(parsed.key?.A?.item, "minecraft:chain", "A must be chain");
+    assert.strictEqual(parsed.key?.B?.item, "test_mod:maple_stripped_log", "B must be stripped_log");
+    assert.strictEqual(parsed.result?.count, 6, "result must be 6");
   });
 
   it("wood type Maple: vanilla-equivalent recipes (sticks, crafting table, chest, wooden tools, barrel, shield) from our planks", () => {
@@ -698,6 +716,10 @@ describe("materializer invariants", () => {
     assert.ok(doorBottomModel, "must generate door_bottom model");
     const doorTopModel = files.find((f) => f.path.includes("models/block/maple_door_top.json"));
     assert.ok(doorTopModel, "must generate door_top model");
+    const doorBottomTex = files.find((f) => f.path.includes("textures/block/maple_door_bottom.png"));
+    const doorTopTex = files.find((f) => f.path.includes("textures/block/maple_door_top.png"));
+    assert.ok(doorBottomTex, "must generate door_bottom texture");
+    assert.ok(doorTopTex, "must generate door_top texture");
 
     const trapdoorBlockstate = files.find((f) => f.path.includes("blockstates/maple_trapdoor.json"));
     assert.ok(trapdoorBlockstate, "must generate trapdoor blockstate");
@@ -705,6 +727,23 @@ describe("materializer invariants", () => {
     assert.ok(trapBs.variants && Object.keys(trapBs.variants).length >= 16, "trapdoor blockstate must have facing+half+open variants");
     const trapdoorOpenModel = files.find((f) => f.path.includes("models/block/maple_trapdoor_open.json"));
     assert.ok(trapdoorOpenModel, "must generate trapdoor_open model");
+  });
+
+  it("loot table maple_door: half=lower so only 1 door drops per double-block", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const lootFile = files.find((f) => f.path.includes("loot_table/blocks/maple_door.json"));
+    assert.ok(lootFile, "must generate door loot table");
+    const parsed = JSON.parse(lootFile!.contents) as { pools: Array<{ entries: Array<{ conditions?: unknown[] }> }> };
+    const conditions = parsed.pools?.[0]?.entries?.[0]?.conditions ?? [];
+    const hasHalfLower = (conditions as Array<{ condition?: string; properties?: { half?: string } }>).some(
+      (c) => c.condition === "minecraft:block_state_property" && c.properties?.half === "lower"
+    );
+    assert.ok(hasHalfLower, "door loot must have half=lower condition so only lower half drops");
   });
 
   it("loot table maple_planks: valid JSON, loadable id <modid>:blocks/maple_planks", () => {

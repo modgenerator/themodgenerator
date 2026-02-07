@@ -31,6 +31,30 @@ function dropSelfLootTable(modId: string, blockId: string): string {
   return JSON.stringify(obj);
 }
 
+/** Door: drop only from lower half so we get exactly 1 door per double-block. */
+function doorLootTable(modId: string, blockId: string): string {
+  const blockRef = `${modId}:${blockId}`;
+  const obj: Record<string, unknown> = {
+    type: "minecraft:block",
+    pools: [
+      {
+        rolls: 1,
+        entries: [
+          {
+            type: "minecraft:item",
+            name: blockRef,
+            conditions: [
+              { condition: "minecraft:block_state_property", block: blockRef, properties: { half: "lower" } },
+              { condition: "minecraft:survives_explosion" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  return JSON.stringify(obj);
+}
+
 /** Slab: drop 1 for single (bottom/top), 2 for double. Vanilla-safe with survives_explosion. */
 function slabLootTable(modId: string, blockId: string): string {
   const blockRef = `${modId}:${blockId}`;
@@ -88,7 +112,12 @@ export function woodLootTableFiles(expanded: ExpandedSpecTier1): MaterializedFil
   for (const block of expanded.blocks) {
     if (!isWoodBlock(block.id, woodIds)) continue;
     const isSlab = woodIds.some((w) => block.id === w + "_slab");
-    const contents = isSlab ? slabLootTable(modId, block.id) : dropSelfLootTable(modId, block.id);
+    const isDoor = woodIds.some((w) => block.id === w + "_door");
+    const contents = isSlab
+      ? slabLootTable(modId, block.id)
+      : isDoor
+        ? doorLootTable(modId, block.id)
+        : dropSelfLootTable(modId, block.id);
     files.push({
       path: `${DATA_BASE}/${modId}/loot_table/blocks/${block.id}.json`,
       contents,

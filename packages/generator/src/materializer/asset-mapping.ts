@@ -348,6 +348,7 @@ export function assetKeysToFiles(
       contents: modelContents,
     });
   }
+  const woodTypes = expanded.spec.woodTypes ?? [];
   for (const id of blockIds) {
     const material = getCanonicalMaterial(materialForId(expanded, id, "block"));
     const meta = semanticMetadataForTexture(expanded, id, "block");
@@ -362,7 +363,8 @@ export function assetKeysToFiles(
       ? resolveVanillaVisualDefaults({ id: blockFromExpanded.id, name: blockFromExpanded.name, type: "block" }, { modId })
       : null;
     const usesPlanksTexture = planksTextureId(id) !== null;
-    if (!usesPlanksTexture) {
+    const isDoorBlock = woodTypes.some((w) => id === w.id + "_door");
+    if (!usesPlanksTexture && !isDoorBlock) {
       files.push({
         path: `${baseAssets}/textures/block/${id}.png`,
       contents: "",
@@ -378,7 +380,6 @@ export function assetKeysToFiles(
       ...meta,
     });
     }
-    const woodTypes = expanded.spec.woodTypes ?? [];
     const isDoor = woodTypes.some((w) => id === w.id + "_door");
     const isTrapdoor = woodTypes.some((w) => id === w.id + "_trapdoor");
     const isButton = woodTypes.some((w) => id === w.id + "_button");
@@ -390,6 +391,16 @@ export function assetKeysToFiles(
     const isHangingSign = woodTypes.some((w) => id === w.id + "_hanging_sign");
 
     if (isDoor) {
+      files.push({
+        path: `${baseAssets}/textures/block/${id}_bottom.png`,
+        contents: "",
+        copyFromVanillaPaths: ["block/oak_door_bottom"],
+      });
+      files.push({
+        path: `${baseAssets}/textures/block/${id}_top.png`,
+        contents: "",
+        copyFromVanillaPaths: ["block/oak_door_top"],
+      });
       files.push({
         path: `${baseAssets}/models/block/${id}_bottom.json`,
         contents: doorModelBottom(modId, id),
@@ -527,7 +538,7 @@ export function assetKeysToFiles(
         vanillaTemplateBlockId: "oak_hanging_sign",
       });
       files.push({
-        path: `${baseAssets}/textures/entity/hanging_sign/${woodId}.png`,
+        path: `${baseAssets}/textures/entity/signs/hanging/${woodId}.png`,
         contents: "",
         copyFromVanillaPaths: [
           "entity/signs/hanging/oak",

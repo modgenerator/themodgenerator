@@ -194,8 +194,11 @@ export function woodRecipesFromWoodTypes(woodTypes: WoodType[]): ModRecipe[] {
     recipes.push({
       id: `${woodId}_hanging_sign`,
       type: "crafting_shaped",
-      pattern: ["- -", "###", "###"],
-      key: { "#": { id: planks }, "-": { id: "minecraft:stick" } },
+      pattern: ["A A", "BBB", "BBB"],
+      key: {
+        A: { id: "minecraft:chain" },
+        B: { id: `${woodId}_stripped_log` },
+      },
       result: { id: `${woodId}_hanging_sign`, count: 6 },
     });
     // Vanilla-equivalent recipes using generated planks only (no #minecraft:planks)

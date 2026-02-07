@@ -59,11 +59,11 @@ async function readZipEntry(zipPath: string, entryPath: string): Promise<string>
   });
 }
 
-/** List all entry paths in a zip. */
-async function listZipEntries(zipPath: string): Promise<string[]> {
+/** List zip entries with uncompressed sizes. */
+async function listZipEntriesWithSizes(zipPath: string): Promise<Map<string, number>> {
   const yauzl = await getYauzl();
   return new Promise((resolve, reject) => {
-    const entries: string[] = [];
+    const map = new Map<string, number>();
     yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
       if (err) {
         reject(err);
@@ -75,12 +75,13 @@ async function listZipEntries(zipPath: string): Promise<string[]> {
       }
       zipfile.readEntry();
       zipfile.on("entry", (entry: import("yauzl").Entry) => {
-        entries.push(entry.fileName);
+        const name = entry.fileName.replace(/\\/g, "/");
+        map.set(name, entry.uncompressedSize ?? 0);
         zipfile.readEntry();
       });
       zipfile.on("end", () => {
         zipfile.close();
-        resolve(entries);
+        resolve(map);
       });
       zipfile.on("error", reject);
     });
@@ -91,13 +92,16 @@ async function listZipEntries(zipPath: string): Promise<string[]> {
  * JAR-gate: Validate recipes and loot tables in the final JAR.
  * Throws on any validation failure. Error message contains only first failing path + reason.
  */
+const MIN_DOOR_TEXTURE_BYTES = 1024;
+
 export async function validateJarGate(
   jarPath: string,
   modId: string,
   blockIds: string[],
   whitelistNonDropping: string[] = []
 ): Promise<void> {
-  const entries = await listZipEntries(jarPath);
+  const entriesWithSizes = await listZipEntriesWithSizes(jarPath);
+  const entries = [...entriesWithSizes.keys()];
 
   // 1) Fail if any recipe is under recipes/ (plural)
   const recipesPlural = entries.filter(
@@ -166,7 +170,29 @@ export async function validateJarGate(
     }
   }
 
-  // 6) Sign/hanging_sign: models, block textures, and entity textures must exist
+  // 6) Door: bottom/top textures must exist and not be suspiciously small
+  for (const blockId of blockIds) {
+    if (blockId.endsWith("_door")) {
+      const bottomPath = `assets/${modId}/textures/block/${blockId}_bottom.png`;
+      const topPath = `assets/${modId}/textures/block/${blockId}_top.png`;
+      if (!entries.includes(bottomPath)) {
+        throw new Error(`JAR-GATE: Door ${blockId} missing texture at ${bottomPath}`);
+      }
+      if (!entries.includes(topPath)) {
+        throw new Error(`JAR-GATE: Door ${blockId} missing texture at ${topPath}`);
+      }
+      const bottomSize = entriesWithSizes.get(bottomPath) ?? 0;
+      const topSize = entriesWithSizes.get(topPath) ?? 0;
+      if (bottomSize < MIN_DOOR_TEXTURE_BYTES) {
+        throw new Error(`JAR-GATE: Door ${blockId} texture ${bottomPath} too small (${bottomSize} < ${MIN_DOOR_TEXTURE_BYTES} bytes)`);
+      }
+      if (topSize < MIN_DOOR_TEXTURE_BYTES) {
+        throw new Error(`JAR-GATE: Door ${blockId} texture ${topPath} too small (${topSize} < ${MIN_DOOR_TEXTURE_BYTES} bytes)`);
+      }
+    }
+  }
+
+  // 7) Sign/hanging_sign: models, block textures, and entity textures must exist
   const assetsPrefix = `assets/${modId}/`;
   for (const blockId of blockIds) {
     if (blockId.endsWith("_hanging_sign")) {
@@ -183,9 +209,13 @@ export async function validateJarGate(
       if (!entries.includes(blockTexPath)) {
         throw new Error(`JAR-GATE: Hanging sign ${blockId} missing block texture at ${blockTexPath}`);
       }
-      const entityTexPath = `${assetsPrefix}textures/entity/hanging_sign/${woodId}.png`;
-      if (!entries.includes(entityTexPath)) {
-        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing entity texture at ${entityTexPath}`);
+      const entityTexHanging = `${assetsPrefix}textures/entity/signs/hanging/${woodId}.png`;
+      const entityTexSigns = `${assetsPrefix}textures/entity/signs/${woodId}.png`;
+      if (!entries.includes(entityTexHanging)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing entity texture at ${entityTexHanging}`);
+      }
+      if (!entries.includes(entityTexSigns)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing entity texture at ${entityTexSigns}`);
       }
     } else if (blockId.endsWith("_sign")) {
       const woodId = blockId.replace(/_sign$/, "");

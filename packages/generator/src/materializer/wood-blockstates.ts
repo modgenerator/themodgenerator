@@ -241,27 +241,29 @@ export function signBlockstateJson(modId: string, blockId: string): string {
   );
 }
 
-/** Hanging sign blockstate. Use "" variant for generic Block. */
+/** Hanging sign blockstate: attached + rotation variants (vanilla-style, MC 1.21.1). */
 export function hangingSignBlockstateJson(modId: string, blockId: string): string {
   const modelBase = `${modId}:block/${blockId}`;
-  return JSON.stringify(
-    {
-      variants: {
-        "": { model: modelBase },
-      },
-    },
-    null,
-    2
-  );
+  const variants: Record<string, { model: string; y?: number }> = {};
+  const attached = [false, true] as const;
+  for (const a of attached) {
+    for (let rotation = 0; rotation < 16; rotation++) {
+      const key = `attached=${a},rotation=${rotation}`;
+      const y = rotation * 22.5;
+      variants[key] = { model: modelBase, y };
+    }
+  }
+  return JSON.stringify({ variants }, null, 2);
 }
 
-/** Door bottom model - parent minecraft:block/door_bottom with our texture. */
+/** Door bottom model - uses door_bottom and door_top textures (16x32 door). */
 export function doorModelBottom(modId: string, blockId: string): string {
-  const tex = `${modId}:block/${blockId}`;
+  const bottomTex = `${modId}:block/${blockId}_bottom`;
+  const topTex = `${modId}:block/${blockId}_top`;
   return JSON.stringify(
     {
       parent: "minecraft:block/door_bottom",
-      textures: { bottom: tex, top: tex },
+      textures: { bottom: bottomTex, top: topTex },
     },
     null,
     2
@@ -270,11 +272,12 @@ export function doorModelBottom(modId: string, blockId: string): string {
 
 /** Door top model. */
 export function doorModelTop(modId: string, blockId: string): string {
-  const tex = `${modId}:block/${blockId}`;
+  const bottomTex = `${modId}:block/${blockId}_bottom`;
+  const topTex = `${modId}:block/${blockId}_top`;
   return JSON.stringify(
     {
       parent: "minecraft:block/door_top",
-      textures: { bottom: tex, top: tex },
+      textures: { bottom: bottomTex, top: topTex },
     },
     null,
     2

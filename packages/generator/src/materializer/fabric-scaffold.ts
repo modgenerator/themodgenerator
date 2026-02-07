@@ -221,6 +221,7 @@ function modMainJava(
     "import net.minecraft.block.DoorBlock;",
     "import net.minecraft.block.FenceBlock;",
     "import net.minecraft.block.FenceGateBlock;",
+    "import net.minecraft.block.HangingSignBlock;",
     "import net.minecraft.block.PillarBlock;",
     "import net.minecraft.block.PressurePlateBlock;",
     "import net.minecraft.block.SlabBlock;",

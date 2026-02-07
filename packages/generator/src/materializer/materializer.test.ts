@@ -554,6 +554,29 @@ describe("materializer invariants", () => {
     assert.ok(fenceGateRegLine?.includes("WoodType.OAK") && fenceGateRegLine?.includes("FenceGateBlock"), "maple_fence_gate must be FenceGateBlock(WoodType.OAK, settings)");
     const hangingSignRegLine = contents.split("\n").find((l) => l.includes('"maple_hanging_sign"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(hangingSignRegLine?.includes("HangingSignBlock"), "maple_hanging_sign must be HangingSignBlock");
+    assert.ok(
+      hangingSignRegLine?.includes("HangingSignBlock(WoodType.OAK,"),
+      "HangingSignBlock must use (WoodType.OAK, settings) order - MC 1.21.1 expects WoodType first"
+    );
+  });
+
+  it("wood type Maple: no WoodType constructors with wrong arg order (Settings, WoodType)", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const scaffold = fabricScaffoldFiles(expanded);
+    const javaFiles = scaffold.filter((f) => f.path.endsWith(".java"));
+    for (const f of javaFiles) {
+      assert.ok(
+        !f.contents.includes("HangingSignBlock(AbstractBlock.Settings"),
+        `HangingSignBlock must use (WoodType, settings) not (Settings, WoodType). Bad pattern in ${f.path}`
+      );
+      assert.ok(
+        !f.contents.includes("FenceGateBlock(AbstractBlock.Settings"),
+        `FenceGateBlock must use (WoodType, settings) not (Settings, WoodType). Bad pattern in ${f.path}`
+      );
+    }
   });
 
   it("wood type Maple: StrippableBlockRegistry only for log and wood (registerStrippableIfHasAxis)", () => {

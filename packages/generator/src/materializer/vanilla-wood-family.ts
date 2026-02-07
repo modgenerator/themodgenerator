@@ -75,7 +75,7 @@ export const WOOD_BLOCK_SPECS: WoodBlockSpec[] = [
   { suffix: "_pressure_plate", blockClass: "PressurePlateBlock", javaCtor: "new PressurePlateBlock(BlockSetType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_PRESSURE_PLATE", needsMultipartBlockstate: false },
   { suffix: "_button", blockClass: "ButtonBlock", javaCtor: "new ButtonBlock(BlockSetType.OAK, 30, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_BUTTON", needsMultipartBlockstate: false },
   { suffix: "_sign", blockClass: "Block", javaCtor: "new Block(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_SIGN", needsMultipartBlockstate: false },
-  { suffix: "_hanging_sign", blockClass: "HangingSignBlock", javaCtor: "new HangingSignBlock(PLACEHOLDER_SETTINGS, WoodType.OAK)", vanillaBlock: "Blocks.OAK_HANGING_SIGN", needsMultipartBlockstate: false },
+  { suffix: "_hanging_sign", blockClass: "HangingSignBlock", javaCtor: "new HangingSignBlock(WoodType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_HANGING_SIGN", needsMultipartBlockstate: false },
 ];
 
 const SPEC_BY_SUFFIX = new Map(WOOD_BLOCK_SPECS.map((s) => [s.suffix, s]));

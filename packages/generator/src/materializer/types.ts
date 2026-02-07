@@ -49,6 +49,8 @@ export interface MaterializedFile {
   copyFromVanillaPaths?: string[];
   /** When set, builder uses collectVanillaDepsForBlock(vanillaTemplateBlockId) to resolve textures from blockstate+models (no guessed paths). */
   vanillaTemplateBlockId?: string;
+  /** When set with vanillaTemplateBlockId, pick texture matching this slot (e.g. "bottom"|"top" for door). */
+  vanillaTextureSlot?: "bottom" | "top";
 }
 
 export interface FabricMaterializerTier1 {

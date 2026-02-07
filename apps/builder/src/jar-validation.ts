@@ -8,6 +8,74 @@ async function getYauzl() {
   return import("yauzl");
 }
 
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+/** Validate buffer is a valid 16x16 PNG. Throws with descriptive message on failure. */
+function validatePng16x16(buf: Buffer, pathForError: string): void {
+  if (buf.length < 24) {
+    throw new Error(`JAR-GATE: ${pathForError} too small to be valid PNG (${buf.length} bytes)`);
+  }
+  if (!buf.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error(`JAR-GATE: ${pathForError} invalid PNG signature (expected 89 50 4E 47 0D 0A 1A 0A)`);
+  }
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  if (width !== 16 || height !== 16) {
+    throw new Error(`JAR-GATE: ${pathForError} must be 16x16 PNG, got ${width}x${height}`);
+  }
+}
+
+/** Read a single entry from a zip (JAR) as Buffer. */
+async function readZipEntryAsBuffer(zipPath: string, entryPath: string): Promise<Buffer> {
+  const yauzl = await getYauzl();
+  return new Promise((resolve, reject) => {
+    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      if (!zipfile) {
+        reject(new Error("Failed to open zip"));
+        return;
+      }
+      zipfile.readEntry();
+      zipfile.on("entry", (entry: import("yauzl").Entry) => {
+        if (entry.fileName === entryPath) {
+          zipfile.openReadStream(entry, (errRead, readStream) => {
+            if (errRead) {
+              zipfile.close();
+              reject(errRead);
+              return;
+            }
+            if (!readStream) {
+              zipfile.close();
+              reject(new Error("No read stream"));
+              return;
+            }
+            const chunks: Buffer[] = [];
+            readStream.on("data", (c: Buffer) => chunks.push(c));
+            readStream.on("end", () => {
+              zipfile.close();
+              resolve(Buffer.concat(chunks));
+            });
+            readStream.on("error", (e) => {
+              zipfile.close();
+              reject(e);
+            });
+          });
+        } else {
+          zipfile.readEntry();
+        }
+      });
+      zipfile.on("end", () => {
+        zipfile.close();
+        reject(new Error(`Entry not found: ${entryPath}`));
+      });
+      zipfile.on("error", reject);
+    });
+  });
+}
+
 /** Read a single entry from a zip (JAR) as UTF-8 string. */
 async function readZipEntry(zipPath: string, entryPath: string): Promise<string> {
   const yauzl = await getYauzl();
@@ -92,7 +160,6 @@ async function listZipEntriesWithSizes(zipPath: string): Promise<Map<string, num
  * JAR-gate: Validate recipes and loot tables in the final JAR.
  * Throws on any validation failure. Error message contains only first failing path + reason.
  */
-const MIN_DOOR_TEXTURE_BYTES = 1024;
 
 export async function validateJarGate(
   jarPath: string,
@@ -170,7 +237,7 @@ export async function validateJarGate(
     }
   }
 
-  // 6) Door: bottom/top textures must exist and not be suspiciously small
+  // 6) Door: bottom/top textures must exist and be valid 16x16 PNGs
   for (const blockId of blockIds) {
     if (blockId.endsWith("_door")) {
       const bottomPath = `assets/${modId}/textures/block/${blockId}_bottom.png`;
@@ -181,14 +248,10 @@ export async function validateJarGate(
       if (!entries.includes(topPath)) {
         throw new Error(`JAR-GATE: Door ${blockId} missing texture at ${topPath}`);
       }
-      const bottomSize = entriesWithSizes.get(bottomPath) ?? 0;
-      const topSize = entriesWithSizes.get(topPath) ?? 0;
-      if (bottomSize < MIN_DOOR_TEXTURE_BYTES) {
-        throw new Error(`JAR-GATE: Door ${blockId} texture ${bottomPath} too small (${bottomSize} < ${MIN_DOOR_TEXTURE_BYTES} bytes)`);
-      }
-      if (topSize < MIN_DOOR_TEXTURE_BYTES) {
-        throw new Error(`JAR-GATE: Door ${blockId} texture ${topPath} too small (${topSize} < ${MIN_DOOR_TEXTURE_BYTES} bytes)`);
-      }
+      const bottomBuf = await readZipEntryAsBuffer(jarPath, bottomPath);
+      const topBuf = await readZipEntryAsBuffer(jarPath, topPath);
+      validatePng16x16(bottomBuf, bottomPath);
+      validatePng16x16(topBuf, topPath);
     }
   }
 

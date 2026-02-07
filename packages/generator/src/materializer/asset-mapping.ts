@@ -398,11 +398,15 @@ export function assetKeysToFiles(
         path: `${baseAssets}/textures/block/${id}_bottom.png`,
         contents: "",
         copyFromVanillaPaths: ["block/oak_door_bottom"],
+        vanillaTemplateBlockId: "oak_door",
+        vanillaTextureSlot: "bottom",
       });
       files.push({
         path: `${baseAssets}/textures/block/${id}_top.png`,
         contents: "",
         copyFromVanillaPaths: ["block/oak_door_top"],
+        vanillaTemplateBlockId: "oak_door",
+        vanillaTextureSlot: "top",
       });
       files.push({
         path: `${baseAssets}/models/block/${id}_bottom.json`,

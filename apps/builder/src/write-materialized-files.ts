@@ -109,13 +109,37 @@ export async function writeMaterializedFiles(
       let buffer: Buffer;
       if (vanillaTemplateBlockId) {
         const deps = await collectVanillaDepsForBlock(vanillaTemplateBlockId, vanillaSource!, opts);
-        const vanillaPath = deps.texturePaths[0] ?? copyFromVanillaPaths?.[0] ?? "";
+        const slot = (file as { vanillaTextureSlot?: "bottom" | "top" }).vanillaTextureSlot;
+        let vanillaPath =
+          slot && deps.texturePaths.length > 0
+            ? deps.texturePaths.find((p) => p.toLowerCase().includes(slot) || p.toLowerCase().includes(`_${slot}`))
+            : undefined;
+        vanillaPath = vanillaPath ?? deps.texturePaths[0] ?? copyFromVanillaPaths?.[0] ?? "";
         if (!vanillaPath) {
           throw new Error(
             `[VANILLA_ASSETS] collectVanillaDepsForBlock("${vanillaTemplateBlockId}") returned no textures for ${relPath}.`
           );
         }
         buffer = await getVanillaTextureBuffer(vanillaSource!, vanillaPath, opts);
+        if (buffer.length < 1024) {
+          const outPath = fullPath;
+          if (process.env.STRICT_ASSETS === "1") {
+            throw new Error(
+              `[JAR-GATE][STRICT_ASSETS] Vanilla texture for ${relPath} missing or too small (${buffer.length} bytes). Set STRICT_ASSETS=0 to allow placeholder fallback.`
+            );
+          }
+          console.warn(`[JAR-GATE][PLACEHOLDER_TEXTURE] Using generated placeholder for ${outPath} (vanilla missing/too small).`);
+          const material = (file.placeholderMaterial ?? "wood") as "wood" | "stone" | "metal" | "gem" | "generic";
+          const seed = textureSeedFromFile(relPath, file);
+          const profile = (file as { textureProfile?: { materialClass?: string; visualMotifs?: string[] } }).textureProfile;
+          const { buffer: pngBuffer } = generateOpaquePng16x16WithProfile({
+            material,
+            colorHint: file.colorHint,
+            seed,
+            textureProfile: profile ?? undefined,
+          });
+          buffer = ensurePngRgba(pngBuffer);
+        }
       } else if (copyFromVanillaPaths!.length > 1) {
         buffer = await getVanillaTextureBufferWithFallbacks(
           vanillaSource!,
@@ -132,6 +156,12 @@ export async function writeMaterializedFiles(
       buffer = ensurePerceptuallyUnique(buffer, relPath, seenPerceptualFingerprints, MAX_PERCEPTUAL_ATTEMPTS, applySemanticColorTheme, applyPerEntityVariation);
       writeFileSync(fullPath, buffer);
     } else if (relPath.endsWith(".png") && (contents === "" || contents.length === 0)) {
+      if (process.env.STRICT_ASSETS === "1") {
+        throw new Error(
+          `[JAR-GATE][STRICT_ASSETS] No asset provided for ${relPath}; would use placeholder. Set STRICT_ASSETS=0 to allow placeholder.`
+        );
+      }
+      console.warn(`[JAR-GATE][PLACEHOLDER_TEXTURE] Using generated placeholder for ${fullPath} (no asset provided).`);
       const material = (placeholderMaterial ?? "generic") as "wood" | "stone" | "metal" | "gem" | "generic";
       const seed = textureSeedFromFile(relPath, file);
       const profile = (file as { textureProfile?: { materialClass?: string; visualMotifs?: string[] } }).textureProfile;

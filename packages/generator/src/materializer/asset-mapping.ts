@@ -498,6 +498,18 @@ export function assetKeysToFiles(
         contents: stairsBlockstateJson(modId, id),
       });
     } else if (isSign) {
+      const woodId = id.replace(/_sign$/, "");
+      files.push({
+        path: `${baseAssets}/textures/block/${id}.png`,
+        contents: "",
+        copyFromVanillaPaths: ["block/oak_sign"],
+        vanillaTemplateBlockId: "oak_sign",
+      });
+      files.push({
+        path: `${baseAssets}/textures/entity/signs/${woodId}.png`,
+        contents: "",
+        copyFromVanillaPaths: ["entity/signs/oak"],
+      });
       files.push({
         path: `${baseAssets}/models/block/${id}.json`,
         contents: signModel(modId, id),
@@ -507,6 +519,18 @@ export function assetKeysToFiles(
         contents: signBlockstateJson(modId, id),
       });
     } else if (isHangingSign) {
+      const woodId = id.replace(/_hanging_sign$/, "");
+      files.push({
+        path: `${baseAssets}/textures/block/${id}.png`,
+        contents: "",
+        copyFromVanillaPaths: ["block/oak_hanging_sign"],
+        vanillaTemplateBlockId: "oak_hanging_sign",
+      });
+      files.push({
+        path: `${baseAssets}/textures/entity/hanging_sign/${woodId}.png`,
+        contents: "",
+        copyFromVanillaPaths: ["entity/hanging_sign/oak"],
+      });
       files.push({
         path: `${baseAssets}/models/block/${id}.json`,
         contents: hangingSignModel(modId, id),

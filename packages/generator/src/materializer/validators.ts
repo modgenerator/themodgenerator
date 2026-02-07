@@ -58,7 +58,7 @@ export function validateWoodBlocksHaveLootTables(
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
   if (woodIds.length === 0) return;
 
-  const lootBase = `src/main/resources/data/${expanded.spec.modId}/loot_tables/blocks/`;
+  const lootBase = `src/main/resources/data/${expanded.spec.modId}/loot_table/blocks/`;
   for (const block of expanded.blocks) {
     if (!isWoodBlock(block.id, woodIds)) continue;
     if (whitelistNonDropping.includes(block.id)) continue;
@@ -125,12 +125,12 @@ interface LootTableStructure {
 
 /**
  * Throws if any loot table JSON is invalid or doesn't match expected structure.
- * Validates files at data/<modid>/loot_tables/blocks/<block_id>.json.
+ * Validates files at data/<modid>/loot_table/blocks/<block_id>.json (MC 1.21.1 singular).
  * Loot table id in-game = <modid>:blocks/<block_id>.
  */
 export function validateLootTableJson(files: MaterializedFile[]): void {
   const lootFiles = files.filter(
-    (f) => f.path.includes("/loot_tables/blocks/") && f.path.endsWith(".json")
+    (f) => f.path.includes("/loot_table/blocks/") && f.path.endsWith(".json")
   );
   for (const f of lootFiles) {
     let parsed: unknown;

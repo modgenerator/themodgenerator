@@ -227,33 +227,32 @@ export function stairsBlockstateJson(modId: string, blockId: string): string {
   return JSON.stringify({ variants }, null, 2);
 }
 
-/** Vanilla-style sign blockstate: rotation (standing) / facing (wall). Signs use block entity. */
+/** Sign blockstate. Use "" variant for generic Block (SignBlock would use rotation). */
 export function signBlockstateJson(modId: string, blockId: string): string {
   const modelBase = `${modId}:block/${blockId}`;
-  const variants: Record<string, { model: string; y?: number }> = {};
-  for (let rotation = 0; rotation < 16; rotation++) {
-    variants[`rotation=${rotation}`] = { model: modelBase, y: rotation * 22.5 };
-  }
-  return JSON.stringify({ variants }, null, 2);
+  return JSON.stringify(
+    {
+      variants: {
+        "": { model: modelBase },
+      },
+    },
+    null,
+    2
+  );
 }
 
-/** Vanilla-style hanging sign blockstate. */
+/** Hanging sign blockstate. Use "" variant for generic Block. */
 export function hangingSignBlockstateJson(modId: string, blockId: string): string {
   const modelBase = `${modId}:block/${blockId}`;
-  const variants: Record<string, { model: string; y?: number }> = {};
-  const facings = ["north", "south", "east", "west"] as const;
-  const attached = [false, true] as const;
-  for (const facing of facings) {
-    for (const a of attached) {
-      const key = `attached=${a},facing=${facing}`;
-      let y = 0;
-      if (facing === "south") y = 180;
-      else if (facing === "west") y = 270;
-      else if (facing === "east") y = 90;
-      variants[key] = { model: modelBase, ...(y ? { y } : {}) };
-    }
-  }
-  return JSON.stringify({ variants }, null, 2);
+  return JSON.stringify(
+    {
+      variants: {
+        "": { model: modelBase },
+      },
+    },
+    null,
+    2
+  );
 }
 
 /** Door bottom model - parent minecraft:block/door_bottom with our texture. */
@@ -431,26 +430,26 @@ export function stairsOuterModel(modId: string, blockId: string): string {
   );
 }
 
-/** Sign model (standing) - uses template_standing_sign with planks texture. */
+/** Sign model - uses template_standing_sign with sign board texture. */
 export function signModel(modId: string, blockId: string): string {
-  const tex = `${modId}:block/${blockId.replace("_sign", "_planks")}`;
+  const tex = `${modId}:block/${blockId}`;
   return JSON.stringify(
     {
       parent: "minecraft:block/template_standing_sign",
-      textures: { particle: tex },
+      textures: { particle: tex, texture: tex },
     },
     null,
     2
   );
 }
 
-/** Hanging sign model - uses template_hanging_sign with planks texture. */
+/** Hanging sign model - uses template_hanging_sign with sign board texture. */
 export function hangingSignModel(modId: string, blockId: string): string {
-  const tex = `${modId}:block/${blockId.replace("_hanging_sign", "_planks")}`;
+  const tex = `${modId}:block/${blockId}`;
   return JSON.stringify(
     {
       parent: "minecraft:block/template_hanging_sign",
-      textures: { particle: tex },
+      textures: { particle: tex, texture: tex },
     },
     null,
     2

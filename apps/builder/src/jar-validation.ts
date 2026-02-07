@@ -89,7 +89,7 @@ async function listZipEntries(zipPath: string): Promise<string[]> {
 
 /**
  * JAR-gate: Validate recipes and loot tables in the final JAR.
- * Throws on any validation failure.
+ * Throws on any validation failure. Error message contains only first failing path + reason.
  */
 export async function validateJarGate(
   jarPath: string,
@@ -105,7 +105,7 @@ export async function validateJarGate(
   );
   if (recipesPlural.length > 0) {
     throw new Error(
-      `JAR-GATE: Recipe files must be under data/<modid>/recipe/ (singular), not recipes/. Invalid: ${recipesPlural.slice(0, 5).join(", ")}${recipesPlural.length > 5 ? "..." : ""}`
+      `JAR-GATE: Recipe files must be under data/<modid>/recipe/ (singular), not recipes/. Invalid: ${recipesPlural[0]}`
     );
   }
 
@@ -130,8 +130,15 @@ export async function validateJarGate(
     }
   }
 
-  // 3) Validate loot tables under data/<modid>/loot_tables/
-  const lootPrefix = `data/${modId}/loot_tables/`;
+  // 3) Fail if loot tables are under loot_tables/ (plural). MC 1.21.1 requires loot_table/ (singular).
+  const lootTablesPlural = entries.filter((e) => e.startsWith(`data/${modId}/loot_tables/`));
+  if (lootTablesPlural.length > 0) {
+    const first = lootTablesPlural[0];
+    throw new Error(`JAR-GATE: Loot tables must be under data/<modid>/loot_table/ (singular), not loot_tables/. Invalid: ${first}`);
+  }
+
+  // 4) Validate loot tables under data/<modid>/loot_table/
+  const lootPrefix = `data/${modId}/loot_table/`;
   const lootEntries = entries.filter((e) => e.startsWith(lootPrefix) && e.endsWith(".json"));
   for (const entry of lootEntries) {
     const text = await readZipEntry(jarPath, entry);
@@ -139,25 +146,65 @@ export async function validateJarGate(
     try {
       parsed = JSON.parse(text);
     } catch (e) {
-      throw new Error(`JAR-GATE: Loot table ${entry} invalid JSON: ${e}`);
+      throw new Error(`JAR-GATE: ${entry} invalid JSON: ${e}`);
     }
     const lt = parsed as Record<string, unknown>;
     if (typeof lt.type !== "string") {
-      throw new Error(`JAR-GATE: Loot table ${entry} must have "type"`);
+      throw new Error(`JAR-GATE: ${entry} must have "type"`);
     }
     if (!Array.isArray(lt.pools)) {
-      throw new Error(`JAR-GATE: Loot table ${entry} must have "pools" array`);
+      throw new Error(`JAR-GATE: ${entry} must have "pools" array`);
     }
   }
 
-  // 4) Every block must have loot table at data/<modid>/loot_tables/blocks/<id>.json
+  // 5) Every block must have loot table at data/<modid>/loot_table/blocks/<id>.json
   for (const blockId of blockIds) {
     if (whitelistNonDropping.includes(blockId)) continue;
-    const lootPath = `data/${modId}/loot_tables/blocks/${blockId}.json`;
+    const lootPath = `data/${modId}/loot_table/blocks/${blockId}.json`;
     if (!entries.includes(lootPath)) {
-      throw new Error(
-        `JAR-GATE: Block ${blockId} must have loot table at ${lootPath}. Add to whitelistNonDropping if intentional.`
-      );
+      throw new Error(`JAR-GATE: Block ${blockId} missing loot table at ${lootPath}`);
+    }
+  }
+
+  // 6) Sign/hanging_sign: models, block textures, and entity textures must exist
+  const assetsPrefix = `assets/${modId}/`;
+  for (const blockId of blockIds) {
+    if (blockId.endsWith("_hanging_sign")) {
+      const woodId = blockId.replace(/_hanging_sign$/, "");
+      const blockstatePath = `${assetsPrefix}blockstates/${blockId}.json`;
+      if (!entries.includes(blockstatePath)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing blockstate at ${blockstatePath}`);
+      }
+      const modelPath = `${assetsPrefix}models/block/${blockId}.json`;
+      if (!entries.includes(modelPath)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing model at ${modelPath}`);
+      }
+      const blockTexPath = `${assetsPrefix}textures/block/${blockId}.png`;
+      if (!entries.includes(blockTexPath)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing block texture at ${blockTexPath}`);
+      }
+      const entityTexPath = `${assetsPrefix}textures/entity/hanging_sign/${woodId}.png`;
+      if (!entries.includes(entityTexPath)) {
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing entity texture at ${entityTexPath}`);
+      }
+    } else if (blockId.endsWith("_sign")) {
+      const woodId = blockId.replace(/_sign$/, "");
+      const blockstatePath = `${assetsPrefix}blockstates/${blockId}.json`;
+      if (!entries.includes(blockstatePath)) {
+        throw new Error(`JAR-GATE: Sign ${blockId} missing blockstate at ${blockstatePath}`);
+      }
+      const modelPath = `${assetsPrefix}models/block/${blockId}.json`;
+      if (!entries.includes(modelPath)) {
+        throw new Error(`JAR-GATE: Sign ${blockId} missing model at ${modelPath}`);
+      }
+      const blockTexPath = `${assetsPrefix}textures/block/${blockId}.png`;
+      if (!entries.includes(blockTexPath)) {
+        throw new Error(`JAR-GATE: Sign ${blockId} missing block texture at ${blockTexPath}`);
+      }
+      const entityTexPath = `${assetsPrefix}textures/entity/signs/${woodId}.png`;
+      if (!entries.includes(entityTexPath)) {
+        throw new Error(`JAR-GATE: Sign ${blockId} missing entity texture at ${entityTexPath}`);
+      }
     }
   }
 }

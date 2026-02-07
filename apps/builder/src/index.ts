@@ -647,6 +647,7 @@ async function main(): Promise<void> {
       await validateJarGate(jarPath, modId, blockIds, []);
     } catch (jarGateErr: unknown) {
       const errMsg = jarGateErr instanceof Error ? jarGateErr.message : String(jarGateErr);
+      console.error(`JAR-GATE FAILED: ${errMsg}`);
       currentStep = "jar_gate_failed";
       logContent = `JAR-gate validation failed: ${errMsg}\n\n`;
       writeFileSync(logPath, logContent, "utf8");

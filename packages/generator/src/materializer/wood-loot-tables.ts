@@ -1,8 +1,8 @@
 /**
  * Loot tables for wood-family blocks so they drop themselves in survival.
- * Path: data/<modId>/loot_tables/blocks/<block_id>.json → loot table id <modId>:blocks/<block_id>
- * Vanilla-safe format: type minecraft:block, pools[0].rolls=1, entries[0].type=minecraft:item, name=<modid>:<block_id>
- * No extra fields, no trailing commas, no BOM.
+ * Path: data/<modId>/loot_table/blocks/<block_id>.json (MC 1.21.1 singular folder)
+ * Loot table id: <modId>:blocks/<block_id>
+ * Vanilla-safe: type=minecraft:block, rolls=1, survives_explosion condition.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -11,23 +11,30 @@ import { isWoodBlock } from "./vanilla-wood-family.js";
 
 const DATA_BASE = "src/main/resources/data";
 
-/** Vanilla-safe drop-self loot table. Minimal structure, no extra fields. */
+/** Vanilla-safe drop-self loot table with survives_explosion condition. */
 function dropSelfLootTable(modId: string, blockId: string): string {
   const obj: Record<string, unknown> = {
     type: "minecraft:block",
     pools: [
       {
         rolls: 1,
-        entries: [{ type: "minecraft:item", name: `${modId}:${blockId}` }],
+        entries: [
+          {
+            type: "minecraft:item",
+            name: `${modId}:${blockId}`,
+            conditions: [{ condition: "minecraft:survives_explosion" }],
+          },
+        ],
       },
     ],
   };
   return JSON.stringify(obj);
 }
 
-/** Slab: drop 1 for single (bottom/top), 2 for double. Block state property "type". Vanilla-safe format. */
+/** Slab: drop 1 for single (bottom/top), 2 for double. Vanilla-safe with survives_explosion. */
 function slabLootTable(modId: string, blockId: string): string {
   const blockRef = `${modId}:${blockId}`;
+  const survives = { condition: "minecraft:survives_explosion" };
   const obj: Record<string, unknown> = {
     type: "minecraft:block",
     pools: [
@@ -37,18 +44,27 @@ function slabLootTable(modId: string, blockId: string): string {
           {
             type: "minecraft:item",
             name: blockRef,
-            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "bottom" } }],
+            conditions: [
+              { condition: "minecraft:block_state_property", block: blockRef, properties: { type: "bottom" } },
+              survives,
+            ],
           },
           {
             type: "minecraft:item",
             name: blockRef,
-            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "top" } }],
+            conditions: [
+              { condition: "minecraft:block_state_property", block: blockRef, properties: { type: "top" } },
+              survives,
+            ],
           },
           {
             type: "minecraft:item",
             name: blockRef,
             count: 2,
-            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "double" } }],
+            conditions: [
+              { condition: "minecraft:block_state_property", block: blockRef, properties: { type: "double" } },
+              survives,
+            ],
           },
         ],
       },
@@ -74,7 +90,7 @@ export function woodLootTableFiles(expanded: ExpandedSpecTier1): MaterializedFil
     const isSlab = woodIds.some((w) => block.id === w + "_slab");
     const contents = isSlab ? slabLootTable(modId, block.id) : dropSelfLootTable(modId, block.id);
     files.push({
-      path: `${DATA_BASE}/${modId}/loot_tables/blocks/${block.id}.json`,
+      path: `${DATA_BASE}/${modId}/loot_table/blocks/${block.id}.json`,
       contents,
     });
   }

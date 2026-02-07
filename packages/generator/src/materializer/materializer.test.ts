@@ -129,7 +129,7 @@ describe("materializeTier1 golden tests", () => {
       /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/(items|blocks)\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/[a-z0-9_]+\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
       /^src\/main\/resources\/data\/minecraft\/tags\/blocks\/mineable\/[a-z0-9_]+\.json$/,
-      /^src\/main\/resources\/data\/[a-z0-9_]+\/loot_tables\/blocks\/[a-z0-9_]+\.json$/,
+      /^src\/main\/resources\/data\/[a-z0-9_]+\/loot_table\/blocks\/[a-z0-9_]+\.json$/,
     ];
     for (const f of files) {
       const matched = allowedPathPatterns.some((p) => p.test(f.path));
@@ -459,7 +459,7 @@ describe("materializer invariants", () => {
     assert.strictEqual(minecraftAxeData.replace, false);
     assert.ok(minecraftAxeData.values.some((v) => v.includes("maple_planks")), "mineable/axe must include wood blocks");
 
-    const lootMaplePlanks = files.find((f) => f.path.includes("loot_tables/blocks/maple_planks.json"));
+    const lootMaplePlanks = files.find((f) => f.path.includes("loot_table/blocks/maple_planks.json"));
     assert.ok(lootMaplePlanks, "must generate loot table for maple_planks so survival break drops item");
     const lootData = JSON.parse(lootMaplePlanks!.contents) as { type: string; pools: unknown[] };
     assert.strictEqual(lootData.type, "minecraft:block");
@@ -470,7 +470,7 @@ describe("materializer invariants", () => {
       .filter((b) => expanded.spec.woodTypes?.some((w) => b.id.startsWith(w.id + "_")))
       .map((b) => b.id);
     for (const blockId of woodBlockIds) {
-      const lootFile = files.find((f) => f.path.includes(`loot_tables/blocks/${blockId}.json`));
+      const lootFile = files.find((f) => f.path.includes(`loot_table/blocks/${blockId}.json`));
       assert.ok(lootFile, `must generate loot table for wood block ${blockId} so survival break drops item`);
     }
   });
@@ -715,7 +715,7 @@ describe("materializer invariants", () => {
     const assets = composeTier1Stub(expanded.descriptors);
     const files = materializeTier1(expanded, assets);
 
-    const lootPath = "src/main/resources/data/test_mod/loot_tables/blocks/maple_planks.json";
+    const lootPath = "src/main/resources/data/test_mod/loot_table/blocks/maple_planks.json";
     const lootFile = files.find((f) => f.path === lootPath);
     assert.ok(lootFile, `jar must contain ${lootPath} for loot id test_mod:blocks/maple_planks`);
     const parsed = JSON.parse(lootFile!.contents) as { type: string; pools: unknown[] };

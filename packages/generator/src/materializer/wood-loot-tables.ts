@@ -1,7 +1,8 @@
 /**
  * Loot tables for wood-family blocks so they drop themselves in survival.
- * Path: src/main/resources/data/<modId>/loot_tables/blocks/<block_id>.json
- * MC 1.21: type "minecraft:block", one pool, one entry type "minecraft:item" with name.
+ * Path: data/<modId>/loot_tables/blocks/<block_id>.json → loot table id <modId>:blocks/<block_id>
+ * Vanilla-safe format: type minecraft:block, pools[0].rolls=1, entries[0].type=minecraft:item, name=<modid>:<block_id>
+ * No extra fields, no trailing commas, no BOM.
  */
 
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
@@ -10,74 +11,50 @@ import { isWoodBlock } from "./vanilla-wood-family.js";
 
 const DATA_BASE = "src/main/resources/data";
 
-/** One pool, one entry: drop self. */
+/** Vanilla-safe drop-self loot table. Minimal structure, no extra fields. */
 function dropSelfLootTable(modId: string, blockId: string): string {
-  return JSON.stringify(
-    {
-      type: "minecraft:block",
-      pools: [
-        {
-          rolls: 1,
-          entries: [{ type: "minecraft:item", name: `${modId}:${blockId}` }],
-        },
-      ],
-    },
-    null,
-    2
-  );
+  const obj: Record<string, unknown> = {
+    type: "minecraft:block",
+    pools: [
+      {
+        rolls: 1,
+        entries: [{ type: "minecraft:item", name: `${modId}:${blockId}` }],
+      },
+    ],
+  };
+  return JSON.stringify(obj);
 }
 
-/** Slab: drop 1 for single (bottom/top), 2 for double. Block state property "type". */
+/** Slab: drop 1 for single (bottom/top), 2 for double. Block state property "type". Vanilla-safe format. */
 function slabLootTable(modId: string, blockId: string): string {
   const blockRef = `${modId}:${blockId}`;
-  return JSON.stringify(
-    {
-      type: "minecraft:block",
-      pools: [
-        {
-          rolls: 1,
-          entries: [
-            {
-              type: "minecraft:item",
-              name: blockRef,
-              conditions: [
-                {
-                  condition: "minecraft:block_state_property",
-                  block: blockRef,
-                  properties: { type: "bottom" },
-                },
-              ],
-            },
-            {
-              type: "minecraft:item",
-              name: blockRef,
-              conditions: [
-                {
-                  condition: "minecraft:block_state_property",
-                  block: blockRef,
-                  properties: { type: "top" },
-                },
-              ],
-            },
-            {
-              type: "minecraft:item",
-              name: blockRef,
-              count: 2,
-              conditions: [
-                {
-                  condition: "minecraft:block_state_property",
-                  block: blockRef,
-                  properties: { type: "double" },
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    null,
-    2
-  );
+  const obj: Record<string, unknown> = {
+    type: "minecraft:block",
+    pools: [
+      {
+        rolls: 1,
+        entries: [
+          {
+            type: "minecraft:item",
+            name: blockRef,
+            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "bottom" } }],
+          },
+          {
+            type: "minecraft:item",
+            name: blockRef,
+            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "top" } }],
+          },
+          {
+            type: "minecraft:item",
+            name: blockRef,
+            count: 2,
+            conditions: [{ condition: "minecraft:block_state_property", block: blockRef, properties: { type: "double" } }],
+          },
+        ],
+      },
+    ],
+  };
+  return JSON.stringify(obj);
 }
 
 /**

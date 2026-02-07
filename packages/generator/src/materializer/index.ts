@@ -100,5 +100,6 @@ export {
   validateNoMinecraftPlanksInRecipes,
   validateWoodBlocksHaveLootTables,
   validateWoodRecipeCoverage,
+  validateLootTableJson,
   getWoodBlocksNeedingMultipartBlockstate,
 } from "./validators.js";

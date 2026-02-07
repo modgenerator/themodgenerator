@@ -18,6 +18,7 @@ import {
   validateNoMinecraftPlanksInRecipes,
   validateWoodBlocksHaveLootTables,
   validateWoodRecipeCoverage,
+  validateLootTableJson,
 } from "./index.js";
 import { planFromIntent } from "../execution-plan.js";
 
@@ -647,7 +648,7 @@ describe("materializer invariants", () => {
     );
   });
 
-  it("wood type Maple: door and trapdoor have multipart blockstate and _bottom/_top models", () => {
+  it("wood type Maple: door has full multipart (half+facing+hinge+open) and _bottom/_top models", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
     });
@@ -657,8 +658,11 @@ describe("materializer invariants", () => {
 
     const doorBlockstate = files.find((f) => f.path.includes("blockstates/maple_door.json"));
     assert.ok(doorBlockstate, "must generate door blockstate");
-    const doorBs = JSON.parse(doorBlockstate!.contents) as { multipart?: unknown[] };
-    assert.ok(Array.isArray(doorBs.multipart) && doorBs.multipart.length >= 2, "door blockstate must be multipart");
+    const doorBs = JSON.parse(doorBlockstate!.contents) as { multipart?: Array<{ when?: Record<string, unknown>; apply?: { model?: string; y?: number } }> };
+    assert.ok(Array.isArray(doorBs.multipart), "door blockstate must be multipart");
+    assert.ok(doorBs.multipart!.length >= 32, "door must have half×facing×hinge×open variants (32)");
+    const first = doorBs.multipart![0];
+    assert.ok(first.when?.half && first.when?.facing && first.when?.hinge && "open" in (first.when ?? {}), "each part must have half, facing, hinge, open");
 
     const doorBottomModel = files.find((f) => f.path.includes("models/block/maple_door_bottom.json"));
     assert.ok(doorBottomModel, "must generate door_bottom model");
@@ -669,6 +673,33 @@ describe("materializer invariants", () => {
     assert.ok(trapdoorBlockstate, "must generate trapdoor blockstate");
     const trapBs = JSON.parse(trapdoorBlockstate!.contents) as { multipart?: unknown[] };
     assert.ok(Array.isArray(trapBs.multipart) && trapBs.multipart.length >= 2, "trapdoor blockstate must be multipart");
+  });
+
+  it("loot table maple_planks: valid JSON, loadable id <modid>:blocks/maple_planks", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+
+    const lootPath = "src/main/resources/data/test_mod/loot_tables/blocks/maple_planks.json";
+    const lootFile = files.find((f) => f.path === lootPath);
+    assert.ok(lootFile, `jar must contain ${lootPath} for loot id test_mod:blocks/maple_planks`);
+    const parsed = JSON.parse(lootFile!.contents) as { type: string; pools: unknown[] };
+    assert.strictEqual(parsed.type, "minecraft:block");
+    assert.ok(Array.isArray(parsed.pools) && parsed.pools.length >= 1);
+    assert.doesNotThrow(() => validateLootTableJson(files), "validateLootTableJson must pass");
+  });
+
+  it("CI validator: loot table JSON structure", () => {
+    const spec = minimalTier1Spec({
+      woodTypes: [{ id: "maple", displayName: "Maple" }],
+    });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    assert.doesNotThrow(() => validateLootTableJson(files), "all loot tables must be valid");
   });
 
   it("CI validator: wood recipes include tools, barrel, bowl, shield", () => {

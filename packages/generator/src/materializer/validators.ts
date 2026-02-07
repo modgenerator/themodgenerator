@@ -78,3 +78,57 @@ export function validateWoodRecipeCoverage(expanded: ExpandedSpecTier1, files: M
 export function getWoodBlocksNeedingMultipartBlockstate(expanded: ExpandedSpecTier1): string[] {
   return woodBlocksNeedingMultipartBlockstate(expanded);
 }
+
+/** Expected structure for block loot table (drop-self). Loot table id = <modid>:blocks/<block_id>. */
+interface LootTableStructure {
+  type: string;
+  pools?: Array<{
+    rolls?: number;
+    entries?: Array<{
+      type?: string;
+      name?: string;
+      count?: number;
+      conditions?: unknown[];
+    }>;
+  }>;
+}
+
+/**
+ * Throws if any loot table JSON is invalid or doesn't match expected structure.
+ * Validates files at data/<modid>/loot_tables/blocks/<block_id>.json.
+ * Loot table id in-game = <modid>:blocks/<block_id>.
+ */
+export function validateLootTableJson(files: MaterializedFile[]): void {
+  const lootFiles = files.filter(
+    (f) => f.path.includes("/loot_tables/blocks/") && f.path.endsWith(".json")
+  );
+  for (const f of lootFiles) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(f.contents);
+    } catch (e) {
+      throw new Error(`VALIDATOR: Loot table ${f.path} is invalid JSON: ${e}`);
+    }
+    const lt = parsed as LootTableStructure;
+    if (typeof lt.type !== "string" || lt.type !== "minecraft:block") {
+      throw new Error(`VALIDATOR: Loot table ${f.path} must have type "minecraft:block"`);
+    }
+    if (!Array.isArray(lt.pools) || lt.pools.length === 0) {
+      throw new Error(`VALIDATOR: Loot table ${f.path} must have at least one pool`);
+    }
+    const pool = lt.pools[0];
+    if (pool.rolls === undefined) {
+      throw new Error(`VALIDATOR: Loot table ${f.path} pool must have rolls`);
+    }
+    if (!Array.isArray(pool.entries) || pool.entries.length === 0) {
+      throw new Error(`VALIDATOR: Loot table ${f.path} pool must have at least one entry`);
+    }
+    const entry = pool.entries[0];
+    if (entry.type !== "minecraft:item") {
+      throw new Error(`VALIDATOR: Loot table ${f.path} entry must have type "minecraft:item"`);
+    }
+    if (typeof entry.name !== "string" || !entry.name.includes(":")) {
+      throw new Error(`VALIDATOR: Loot table ${f.path} entry must have name "<modid>:<block_id>"`);
+    }
+  }
+}

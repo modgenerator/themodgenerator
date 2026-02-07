@@ -55,6 +55,7 @@ import {
   composeTier1Stub,
   materializeTier1,
   materializeTier1WithPlans,
+  validateLootTableJson,
   planFromIntent,
   aggregateExecutionPlans,
   buildAggregatedExpectationContract,
@@ -539,6 +540,7 @@ async function main(): Promise<void> {
         mcVersion: specToUse.minecraftVersion ?? "1.21.1",
       });
       validateGeneratedRecipeJsonFromFiles(files, workDir, { ...expanded.spec, items: expanded.items, blocks: expanded.blocks });
+      validateLootTableJson(files);
       buildAndWriteTextureManifest(files, workDir);
       validateBlockAsItemAssets(files, expanded.blocks.map((b) => b.id), expanded.spec.modId);
       validateTexturePngs(files, workDir);

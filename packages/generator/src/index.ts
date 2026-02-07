@@ -17,6 +17,7 @@ export {
   fabricMaterializerTier1,
   assetKeysToFiles,
   fabricScaffoldFiles,
+  validateLootTableJson,
 } from "./materializer/index.js";
 export type { Primitive, PrimitiveDefinition, PrimitiveSafety } from "./primitives.js";
 export { PRIMITIVE_REGISTRY } from "./primitives.js";

@@ -332,7 +332,10 @@ export function assetKeysToFiles(
     let modelContents: string;
     // JAR-GATE: Items that are also blocks use block texture (layer0: block/xxx). No textures/item/ needed.
     if (isBlockId) {
-      const texId = planksTextureId(id) ?? id;
+      let texId = planksTextureId(id) ?? id;
+      if (id.endsWith("_door")) {
+        texId = id + "_bottom";
+      }
       modelContents = itemModelJsonWithBlockTexture(modId, id, texId);
     } else if (itemRender === "blocklike") {
       modelContents = blockAsItemModelJson(modId, id);

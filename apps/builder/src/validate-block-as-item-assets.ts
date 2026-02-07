@@ -54,7 +54,14 @@ export function validateBlockAsItemAssets(
         }
         const textureId = match[1];
         const expectedTexture = `${ASSETS_PREFIX}/${modId}/textures/block/${textureId}.png`;
-        if (!blockTexturePaths.has(expectedTexture)) {
+        const hasTexture = blockTexturePaths.has(expectedTexture);
+        if (!hasTexture && blockId.endsWith("_door") && textureId === blockId) {
+          const fallbackTexture = `${ASSETS_PREFIX}/${modId}/textures/block/${blockId}_bottom.png`;
+          if (blockTexturePaths.has(fallbackTexture)) {
+            continue;
+          }
+        }
+        if (!hasTexture) {
           throw new Error(
             `Block-as-item validation failed: blockId "${blockId}" item model references texture "${layer0}" but file is missing: ${expectedTexture}`
           );

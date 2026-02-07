@@ -720,6 +720,13 @@ describe("materializer invariants", () => {
     const doorTopTex = files.find((f) => f.path.includes("textures/block/maple_door_top.png"));
     assert.ok(doorBottomTex, "must generate door_bottom texture");
     assert.ok(doorTopTex, "must generate door_top texture");
+    const doorItemModel = files.find((f) => f.path.includes("models/item/maple_door.json"));
+    assert.ok(doorItemModel, "must generate door item model");
+    const doorItemParsed = JSON.parse(doorItemModel!.contents) as { parent?: string; textures?: { layer0?: string } };
+    const refsDoorBottom =
+      doorItemParsed.textures?.layer0?.includes("maple_door_bottom") ||
+      doorItemParsed.parent?.includes("maple_door_bottom");
+    assert.ok(refsDoorBottom, "door item model must reference door_bottom (layer0 or parent), not maple_door");
 
     const trapdoorBlockstate = files.find((f) => f.path.includes("blockstates/maple_trapdoor.json"));
     assert.ok(trapdoorBlockstate, "must generate trapdoor blockstate");

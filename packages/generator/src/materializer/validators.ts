@@ -7,6 +7,36 @@ import type { MaterializedFile } from "./types.js";
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import { isWoodBlock, woodBlocksNeedingMultipartBlockstate } from "./vanilla-wood-family.js";
 
+/** Throws if any recipe file is under data/<modid>/recipes/ (plural). MC 1.21.1 requires recipe/ (singular). */
+export function validateNoRecipesPluralFolder(files: MaterializedFile[]): void {
+  const bad = files.filter((f) => f.path.match(/\/data\/[^/]+\/recipes\//) && f.path.endsWith(".json"));
+  if (bad.length > 0) {
+    throw new Error(
+      `JAR-GATE: Recipe files must be under data/<modid>/recipe/ (singular), not recipes/. Invalid paths: ${bad.map((f) => f.path).join(", ")}`
+    );
+  }
+}
+
+/** Throws if any recipe JSON is invalid or missing required fields (type, result). */
+export function validateRecipeJsonSchema(files: MaterializedFile[]): void {
+  const recipeFiles = files.filter((f) => f.path.includes("/recipe/") && f.path.endsWith(".json"));
+  for (const f of recipeFiles) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(f.contents);
+    } catch (e) {
+      throw new Error(`JAR-GATE: Recipe ${f.path} invalid JSON: ${e}`);
+    }
+    const r = parsed as Record<string, unknown>;
+    if (typeof r.type !== "string") {
+      throw new Error(`JAR-GATE: Recipe ${f.path} must have "type"`);
+    }
+    if (!("result" in r)) {
+      throw new Error(`JAR-GATE: Recipe ${f.path} must have "result"`);
+    }
+  }
+}
+
 /** Throws if any recipe file references #minecraft:planks (tag fragility). */
 export function validateNoMinecraftPlanksInRecipes(files: MaterializedFile[]): void {
   const recipeFiles = files.filter((f) => f.path.includes("/recipe/") && f.path.endsWith(".json"));

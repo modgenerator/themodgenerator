@@ -97,6 +97,8 @@ export {
 } from "./behavior-generator.js";
 export { recipeDataFiles } from "./recipe-generator.js";
 export {
+  validateNoRecipesPluralFolder,
+  validateRecipeJsonSchema,
   validateNoMinecraftPlanksInRecipes,
   validateWoodBlocksHaveLootTables,
   validateWoodRecipeCoverage,

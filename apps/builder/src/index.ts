@@ -56,6 +56,8 @@ import {
   materializeTier1,
   materializeTier1WithPlans,
   validateLootTableJson,
+  validateNoRecipesPluralFolder,
+  validateRecipeJsonSchema,
   planFromIntent,
   aggregateExecutionPlans,
   buildAggregatedExpectationContract,
@@ -72,6 +74,7 @@ import { validateTexturePngFile, perceptualFingerprint } from "./texture-validat
 import { logVanillaAssetsPackAtStartup } from "./vanilla-asset-source.js";
 import { writeMaterializedFiles, getTextureMetaByPath } from "./write-materialized-files.js";
 import { validateBlockAsItemAssets } from "./validate-block-as-item-assets.js";
+import { validateJarGate } from "./jar-validation.js";
 import {
   expandSpecTier1,
   isModSpecV2,
@@ -540,6 +543,8 @@ async function main(): Promise<void> {
         mcVersion: specToUse.minecraftVersion ?? "1.21.1",
       });
       validateGeneratedRecipeJsonFromFiles(files, workDir, { ...expanded.spec, items: expanded.items, blocks: expanded.blocks });
+      validateNoRecipesPluralFolder(files);
+      validateRecipeJsonSchema(files);
       validateLootTableJson(files);
       buildAndWriteTextureManifest(files, workDir);
       validateBlockAsItemAssets(files, expanded.blocks.map((b) => b.id), expanded.spec.modId);
@@ -635,6 +640,27 @@ async function main(): Promise<void> {
         log_path: `gs://${GCS_BUCKET}/${logKey}`,
       });
       fatalExit(`[BUILDER] buildId=${buildId} JAR missing ${recipesPrefix}; failing job`);
+    }
+    currentStep = "jar_gate_validation";
+    try {
+      const blockIds = expanded.blocks.map((b) => b.id);
+      await validateJarGate(jarPath, modId, blockIds, []);
+    } catch (jarGateErr: unknown) {
+      const errMsg = jarGateErr instanceof Error ? jarGateErr.message : String(jarGateErr);
+      currentStep = "jar_gate_failed";
+      logContent = `JAR-gate validation failed: ${errMsg}\n\n`;
+      writeFileSync(logPath, logContent, "utf8");
+      const logKey = `logs/${JOB_ID}/build.log`;
+      await uploadFile(logPath, { bucket: GCS_BUCKET, destination: logKey, contentType: "text/plain" });
+      await updateJob(pool, JOB_ID, {
+        status: "failed",
+        finished_at: new Date(),
+        current_phase: "failed",
+        phase_updated_at: new Date(),
+        rejection_reason: `JAR-gate: ${errMsg}`,
+        log_path: `gs://${GCS_BUCKET}/${logKey}`,
+      });
+      fatalExit(`[BUILDER] buildId=${buildId} JAR-gate validation failed: ${errMsg}`, jarGateErr);
     }
     const artifactKey = `artifacts/${JOB_ID}/${jarFile}`;
     const logKey = `logs/${JOB_ID}/build.log`;

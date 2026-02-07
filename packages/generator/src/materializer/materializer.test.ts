@@ -15,6 +15,7 @@ import {
   materializeTier1WithPlans,
   recipeDataFiles,
   fabricScaffoldFiles,
+  validateNoRecipesPluralFolder,
   validateNoMinecraftPlanksInRecipes,
   validateWoodBlocksHaveLootTables,
   validateWoodRecipeCoverage,
@@ -277,7 +278,7 @@ describe("materializer invariants", () => {
     assert.strictEqual(typeof smeltingJson.result.id, "string");
     assert.strictEqual(smeltingJson.result.count, 1);
 
-    assert.ok(recipeFiles.every((f) => f.path.startsWith("src/main/resources/data/test_mod/recipe/")), "recipes must be under data/<modId>/recipe/");
+    assert.ok(recipeFiles.every((f) => f.path.startsWith("src/main/resources/data/test_mod/recipe/")), "recipes must be under data/<modId>/recipe/ (singular)");
   });
 
   it("smelting recipe emits file under data/<modId>/recipe/ with result.id (1.21.1, no legacy result.item)", () => {
@@ -615,6 +616,20 @@ describe("materializer invariants", () => {
     assert.ok(files.some((f) => f.path.includes("recipe/bowl_from_maple_planks.json")), "bowl recipe");
   });
 
+  it("JAR-GATE validator: no recipes/ (plural) folder - MC 1.21.1 uses recipe/ (singular)", () => {
+    const spec = minimalTier1Spec({ woodTypes: [{ id: "maple", displayName: "Maple" }] });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    assert.doesNotThrow(() => validateNoRecipesPluralFolder(files), "generated files use recipe/ (singular)");
+    const badFiles = [{ path: "src/main/resources/data/test_mod/recipes/bad.json", contents: '{}' }];
+    assert.throws(
+      () => validateNoRecipesPluralFolder(badFiles),
+      /JAR-GATE.*recipe/,
+      "validator must throw when any file is under data/<modid>/recipes/ (plural)"
+    );
+  });
+
   it("CI validator: no recipe references #minecraft:planks", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
@@ -648,6 +663,21 @@ describe("materializer invariants", () => {
     );
   });
 
+  it("JAR-GATE: wood block-items use layer0: block/ in item model, no textures/item/ (no missing texture)", () => {
+    const spec = minimalTier1Spec({ woodTypes: [{ id: "maple", displayName: "Maple" }] });
+    const expanded = expandSpecTier1(spec);
+    const assets = composeTier1Stub(expanded.descriptors);
+    const files = materializeTier1(expanded, assets);
+    const maplePlanksItemModel = files.find((f) => f.path.includes("models/item/maple_planks.json"));
+    assert.ok(maplePlanksItemModel, "must have item model for maple_planks");
+    assert.ok(
+      maplePlanksItemModel.contents.includes("block/maple_planks") && maplePlanksItemModel.contents.includes("layer0"),
+      "item model must use layer0: block/maple_planks (no item texture)"
+    );
+    const maplePlanksItemTexture = files.find((f) => f.path.includes("textures/item/maple_planks"));
+    assert.ok(!maplePlanksItemTexture, "block-items must NOT have textures/item/ (use block texture)");
+  });
+
   it("wood type Maple: door has full multipart (half+facing+hinge+open) and _bottom/_top models", () => {
     const spec = minimalTier1Spec({
       woodTypes: [{ id: "maple", displayName: "Maple" }],
@@ -671,8 +701,10 @@ describe("materializer invariants", () => {
 
     const trapdoorBlockstate = files.find((f) => f.path.includes("blockstates/maple_trapdoor.json"));
     assert.ok(trapdoorBlockstate, "must generate trapdoor blockstate");
-    const trapBs = JSON.parse(trapdoorBlockstate!.contents) as { multipart?: unknown[] };
-    assert.ok(Array.isArray(trapBs.multipart) && trapBs.multipart.length >= 2, "trapdoor blockstate must be multipart");
+    const trapBs = JSON.parse(trapdoorBlockstate!.contents) as { variants?: Record<string, unknown> };
+    assert.ok(trapBs.variants && Object.keys(trapBs.variants).length >= 16, "trapdoor blockstate must have facing+half+open variants");
+    const trapdoorOpenModel = files.find((f) => f.path.includes("models/block/maple_trapdoor_open.json"));
+    assert.ok(trapdoorOpenModel, "must generate trapdoor_open model");
   });
 
   it("loot table maple_planks: valid JSON, loadable id <modid>:blocks/maple_planks", () => {

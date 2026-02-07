@@ -1,5 +1,5 @@
 /**
- * Generate data/<modId>/recipe/*.json from spec only (1.21+ singular folder).
+ * Generate data/<modId>/recipe/*.json from spec (MC 1.21.1 singular folder).
  * No keyword or id-based branches; all recipes come from expanded.spec.recipes[].
  * Minecraft 1.21.1: crafting_shapeless, crafting_shaped, smelting, blasting, smoking, campfire_cooking.
  * Crafting result: { "id": "<modid>:<id>", "count": N }.
@@ -144,7 +144,7 @@ function campfireCookingFromSpec(modId: string, rec: ModRecipe): string {
 }
 
 /**
- * Emit recipe JSON files under data/<modId>/recipe/ (1.21+ singular) from spec.recipes only.
+ * Emit recipe JSON files under data/<modId>/recipe/ from spec.recipes only (MC 1.21.1 singular).
  * Path: src/main/resources/data/<modId>/recipe/<id>.json. modId must match registration.
  * Supported: crafting_shapeless, crafting_shaped, smelting, blasting, smoking, campfire_cooking.
  */

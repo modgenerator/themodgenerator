@@ -25,6 +25,29 @@ import {
   doorModelTop,
   trapdoorModelBottom,
   trapdoorModelTop,
+  trapdoorModelOpen,
+  buttonBlockstateJson,
+  buttonModel,
+  buttonPressedModel,
+  pressurePlateBlockstateJson,
+  pressurePlateUpModel,
+  pressurePlateDownModel,
+  fenceGateBlockstateJson,
+  fenceGateModel,
+  fenceGateOpenModel,
+  fenceGateWallModel,
+  fenceGateWallOpenModel,
+  slabBlockstateJson,
+  slabModel,
+  slabTopModel,
+  stairsBlockstateJson,
+  stairsModel,
+  stairsInnerModel,
+  stairsOuterModel,
+  signBlockstateJson,
+  signModel,
+  hangingSignBlockstateJson,
+  hangingSignModel,
 } from "./wood-blockstates.js";
 
 const ITEM_PREFIX = "item/";
@@ -108,12 +131,30 @@ function itemModelJsonWithElements(modId: string, id: string, shape: "rod" | "ch
 `;
 }
 
-/** Block-as-item model: reference block model so held/inventory uses block appearance. No separate item texture. */
+/** Block-as-item model: reference block model so held/inventory uses 3D block appearance. No separate item texture. */
 function blockAsItemModelJson(modId: string, blockId: string): string {
   return `{
   "parent": "${modId}:block/${blockId}"
 }
 `;
+}
+
+/** Item model using minecraft:item/generated with layer0 pointing at block texture. No textures/item/ needed. */
+function itemModelJsonWithBlockTexture(modId: string, blockId: string, textureId?: string): string {
+  const tex = textureId ?? blockId;
+  return `{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "${modId}:block/${tex}"
+  }
+}
+`;
+}
+
+/** For wood blocks that use planks texture (button, pressure_plate, fence_gate, slab, stairs, sign, hanging_sign). */
+function planksTextureId(blockId: string): string | null {
+  const m = blockId.match(/^(.+)_(button|pressure_plate|fence_gate|slab|stairs|sign|hanging_sign)$/);
+  return m ? `${m[1]}_planks` : null;
 }
 
 function blockModelJson(modId: string, id: string, parent?: string): string {
@@ -263,23 +304,30 @@ export function assetKeysToFiles(
       !hasUserTexture && itemFromExpanded
         ? resolveVanillaVisualDefaults({ id: itemFromExpanded.id, name: itemFromExpanded.name }, { modId })
         : null;
-    files.push({
-      path: `${baseAssets}/textures/item/${id}.png`,
-      contents: "",
-      placeholderMaterial: material,
-      ...(colorHint && { colorHint }),
-      textureIntent,
-      ...(textureProfile && { textureProfile }),
-      ...(texturePrompt && { texturePrompt }),
-      ...(vanillaDefault && {
-        copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths,
-        ...(vanillaDefault.vanillaTemplateBlockId && { vanillaTemplateBlockId: vanillaDefault.vanillaTemplateBlockId }),
-      }),
-      ...meta,
-    });
     const isBlockId = expanded.blocks.some((b) => b.id === id);
+    // JAR-GATE: Block-items use block model (no item texture). Skip item texture to avoid missing texture.
+    if (!isBlockId) {
+      files.push({
+        path: `${baseAssets}/textures/item/${id}.png`,
+        contents: "",
+        placeholderMaterial: material,
+        ...(colorHint && { colorHint }),
+        textureIntent,
+        ...(textureProfile && { textureProfile }),
+        ...(texturePrompt && { texturePrompt }),
+        ...(vanillaDefault && {
+          copyFromVanillaPaths: vanillaDefault.copyFromVanillaPaths,
+          ...(vanillaDefault.vanillaTemplateBlockId && { vanillaTemplateBlockId: vanillaDefault.vanillaTemplateBlockId }),
+        }),
+        ...meta,
+      });
+    }
     let modelContents: string;
-    if (itemRender === "blocklike" && isBlockId) {
+    // JAR-GATE: Items that are also blocks use block texture (layer0: block/xxx). No textures/item/ needed.
+    if (isBlockId) {
+      const texId = planksTextureId(id) ?? id;
+      modelContents = itemModelJsonWithBlockTexture(modId, id, texId);
+    } else if (itemRender === "blocklike") {
       modelContents = blockAsItemModelJson(modId, id);
     } else if (itemRender === "rod" || itemRender === "chunky" || itemRender === "plate") {
       modelContents = itemModelJsonWithElements(modId, id, itemRender);
@@ -306,8 +354,10 @@ export function assetKeysToFiles(
     const vanillaDefault = !hasUserTexture && blockFromExpanded
       ? resolveVanillaVisualDefaults({ id: blockFromExpanded.id, name: blockFromExpanded.name, type: "block" }, { modId })
       : null;
-    files.push({
-      path: `${baseAssets}/textures/block/${id}.png`,
+    const usesPlanksTexture = planksTextureId(id) !== null;
+    if (!usesPlanksTexture) {
+      files.push({
+        path: `${baseAssets}/textures/block/${id}.png`,
       contents: "",
       placeholderMaterial: material,
       ...(colorHint && { colorHint }),
@@ -320,8 +370,17 @@ export function assetKeysToFiles(
       }),
       ...meta,
     });
-    const isDoor = expanded.spec.woodTypes?.some((w) => id === w.id + "_door");
-    const isTrapdoor = expanded.spec.woodTypes?.some((w) => id === w.id + "_trapdoor");
+    }
+    const woodTypes = expanded.spec.woodTypes ?? [];
+    const isDoor = woodTypes.some((w) => id === w.id + "_door");
+    const isTrapdoor = woodTypes.some((w) => id === w.id + "_trapdoor");
+    const isButton = woodTypes.some((w) => id === w.id + "_button");
+    const isPressurePlate = woodTypes.some((w) => id === w.id + "_pressure_plate");
+    const isFenceGate = woodTypes.some((w) => id === w.id + "_fence_gate");
+    const isSlab = woodTypes.some((w) => id === w.id + "_slab");
+    const isStairs = woodTypes.some((w) => id === w.id + "_stairs");
+    const isSign = woodTypes.some((w) => id === w.id + "_sign");
+    const isHangingSign = woodTypes.some((w) => id === w.id + "_hanging_sign");
 
     if (isDoor) {
       files.push({
@@ -346,8 +405,108 @@ export function assetKeysToFiles(
         contents: trapdoorModelTop(modId, id),
       });
       files.push({
+        path: `${baseAssets}/models/block/${id}_open.json`,
+        contents: trapdoorModelOpen(modId, id),
+      });
+      files.push({
         path: `${baseAssets}/blockstates/${id}.json`,
         contents: trapdoorBlockstateJson(modId, id),
+      });
+    } else if (isButton) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: buttonModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_pressed.json`,
+        contents: buttonPressedModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: buttonBlockstateJson(modId, id),
+      });
+    } else if (isPressurePlate) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}_up.json`,
+        contents: pressurePlateUpModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_down.json`,
+        contents: pressurePlateDownModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: pressurePlateBlockstateJson(modId, id),
+      });
+    } else if (isFenceGate) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: fenceGateModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_open.json`,
+        contents: fenceGateOpenModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_wall.json`,
+        contents: fenceGateWallModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_wall_open.json`,
+        contents: fenceGateWallOpenModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: fenceGateBlockstateJson(modId, id),
+      });
+    } else if (isSlab) {
+      const planksId = id.replace("_slab", "_planks");
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: slabModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_top.json`,
+        contents: slabTopModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: slabBlockstateJson(modId, id, planksId),
+      });
+    } else if (isStairs) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: stairsModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_inner.json`,
+        contents: stairsInnerModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/models/block/${id}_outer.json`,
+        contents: stairsOuterModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: stairsBlockstateJson(modId, id),
+      });
+    } else if (isSign) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: signModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: signBlockstateJson(modId, id),
+      });
+    } else if (isHangingSign) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: hangingSignModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: hangingSignBlockstateJson(modId, id),
       });
     } else {
       files.push({

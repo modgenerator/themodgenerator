@@ -153,7 +153,8 @@ function itemModelJsonWithBlockTexture(modId: string, blockId: string, textureId
 
 /** For wood blocks that use planks texture (button, pressure_plate, fence_gate, slab, stairs, sign, hanging_sign). */
 function planksTextureId(blockId: string): string | null {
-  const m = blockId.match(/^(.+)_(button|pressure_plate|fence_gate|slab|stairs|sign|hanging_sign)$/);
+  // Match longer suffixes first (hanging_sign before sign) so maple_hanging_sign -> maple_planks not maple_hanging_planks
+  const m = blockId.match(/^(.+)_(button|pressure_plate|fence_gate|slab|stairs|hanging_sign|sign)$/);
   return m ? `${m[1]}_planks` : null;
 }
 

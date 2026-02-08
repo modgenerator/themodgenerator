@@ -436,14 +436,14 @@ function modClientJava(javaPackage: string, mainClassName: string): string {
   return `package net.themodgenerator.${javaPackage};
 
 import net.fabricmc.api.ClientModInitializer;
-import net.minecraft.client.render.block.entity.BlockEntityRenderers;
+import net.minecraft.client.render.block.entity.BlockEntityRendererFactories;
 import net.minecraft.client.render.block.entity.HangingSignBlockEntityRenderer;
 
 /** Client-side: register block entity renderer for mod hanging signs. */
 public class ${mainClassName}Client implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		BlockEntityRenderers.register(${mainClassName}.HANGING_SIGN_BLOCK_ENTITY, HangingSignBlockEntityRenderer::new);
+		BlockEntityRendererFactories.register(${mainClassName}.HANGING_SIGN_BLOCK_ENTITY, HangingSignBlockEntityRenderer::new);
 	}
 }
 `;

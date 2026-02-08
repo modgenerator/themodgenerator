@@ -501,7 +501,13 @@ describe("materializer invariants", () => {
     });
     const expanded = expandSpecTier1(spec);
     const scaffold = fabricScaffoldFiles(expanded);
-    const javaFile = scaffold.find((f) => f.path.endsWith(".java") && !f.path.includes("StrippablePlanks"));
+    const javaFile = scaffold.find(
+      (f) =>
+        f.path.endsWith(".java") &&
+        !f.path.includes("StrippablePlanks") &&
+        !f.path.includes("Client") &&
+        !f.path.includes("ModHangingSignBlock")
+    );
     assert.ok(javaFile, "must generate Mod main Java");
     const contents = javaFile!.contents;
     assert.ok(contents.includes("Settings.copy(Blocks.OAK"), "wood blocks must copy vanilla settings for mining speed/tool");
@@ -552,12 +558,12 @@ describe("materializer invariants", () => {
     assert.ok(stairsRegLine?.includes("StairsBlock"), "maple_stairs must be StairsBlock");
     const fenceGateRegLine = contents.split("\n").find((l) => l.includes('"maple_fence_gate"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(fenceGateRegLine?.includes("WoodType.OAK") && fenceGateRegLine?.includes("FenceGateBlock"), "maple_fence_gate must be FenceGateBlock(WoodType.OAK, settings)");
-    const hangingSignRegLine = contents.split("\n").find((l) => l.includes('"maple_hanging_sign"') && l.includes("Registry.register(Registries.BLOCK"));
-    assert.ok(hangingSignRegLine?.includes("HangingSignBlock"), "maple_hanging_sign must be HangingSignBlock");
+    assert.ok(contents.includes("ModHangingSignBlock"), "maple_hanging_sign must use ModHangingSignBlock (custom BE type)");
     assert.ok(
-      hangingSignRegLine?.includes("HangingSignBlock(WoodType.OAK,"),
-      "HangingSignBlock must use (WoodType.OAK, settings) order - MC 1.21.1 expects WoodType first"
+      contents.includes("ModHangingSignBlock(WoodType.OAK,"),
+      "ModHangingSignBlock must use (WoodType.OAK, settings) order - MC 1.21.1 expects WoodType first"
     );
+    assert.ok(contents.includes("HANGING_SIGN_BLOCK_ENTITY"), "must register BlockEntityType for hanging signs");
   });
 
   it("wood type Maple: no WoodType constructors with wrong arg order (Settings, WoodType)", () => {

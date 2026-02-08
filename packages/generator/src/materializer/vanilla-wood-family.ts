@@ -119,6 +119,14 @@ export function woodBlockRegistrationJava(blockId: string, woodIds: string[]): {
   };
 }
 
+/** Block IDs that are hanging signs (need custom BlockEntityType). */
+export function hangingSignBlockIds(expanded: ExpandedSpecTier1): string[] {
+  const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
+  return expanded.blocks
+    .filter((b) => woodIds.some((w) => b.id === w + "_hanging_sign"))
+    .map((b) => b.id);
+}
+
 /** Block IDs that need multipart blockstate (door, trapdoor). */
 export function woodBlocksNeedingMultipartBlockstate(expanded: ExpandedSpecTier1): string[] {
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);

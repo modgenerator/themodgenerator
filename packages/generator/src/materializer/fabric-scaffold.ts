@@ -9,7 +9,11 @@ import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import type { MaterializedFile } from "./types.js";
 import type { ExecutionPlan } from "../execution-plan.js";
 import { getItemClassNameForRegistration } from "./behavior-generator.js";
-import { woodBlockRegistrationJava } from "./vanilla-wood-family.js";
+import {
+  woodBlockRegistrationJava,
+  hangingSignBlockIds,
+  getWoodBlockSpec,
+} from "./vanilla-wood-family.js";
 
 function toClassName(s: string): string {
   return s
@@ -26,7 +30,10 @@ function escapeJava(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-function buildGradle(modId: string): string {
+function buildGradle(modId: string, hasClientSources: boolean): string {
+  const modSourceSets = hasClientSources
+    ? 'sourceSet("main")\n\t\t\tsourceSet("client")'
+    : 'sourceSet("main")';
   return `plugins {
 	id 'java'
 	id 'fabric-loom' version '1.7-SNAPSHOT'
@@ -49,7 +56,7 @@ loom {
 	splitEnvironmentSourceSets()
 	mods {
 		"${modId}" {
-			sourceSet("main")
+			${modSourceSets}
 		}
 	}
 }
@@ -109,7 +116,19 @@ rootProject.name = "${modId}"
 `;
 }
 
-function fabricModJson(modId: string, modName: string, javaPackage: string, className: string): string {
+function fabricModJson(
+  modId: string,
+  modName: string,
+  javaPackage: string,
+  className: string,
+  hasHangingSigns: boolean
+): string {
+  const clientEntrypoint = hasHangingSigns
+    ? `,
+    "client": [
+      "net.themodgenerator.${javaPackage}.${className}Client"
+    ]`
+    : "";
   return `{
   "schemaVersion": 1,
   "id": "${modId}",
@@ -120,7 +139,7 @@ function fabricModJson(modId: string, modName: string, javaPackage: string, clas
   "entrypoints": {
     "main": [
       "net.themodgenerator.${javaPackage}.${className}"
-    ]
+    ]${clientEntrypoint}
   },
   "depends": {
     "fabricloader": ">=0.16.0",
@@ -177,15 +196,36 @@ function modMainJava(
     })
     .join("\n");
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
+  const hangingSignIds = hangingSignBlockIds(expanded);
+  const hasHangingSigns = hangingSignIds.length > 0;
+
   const blockLines: string[] = [];
+  if (hasHangingSigns) {
+    blockLines.push("		// Create hanging sign blocks first (needed for BlockEntityType registration)");
+    for (const blockId of hangingSignIds) {
+      const varName = toJavaId(blockId) + "Block";
+      const spec = getWoodBlockSpec(blockId, woodIds);
+      const settings = spec ? `AbstractBlock.Settings.copy(${spec.vanillaBlock})` : "AbstractBlock.Settings.create()";
+      blockLines.push(`		ModHangingSignBlock ${varName} = new ModHangingSignBlock(WoodType.OAK, ${settings});`);
+    }
+    const hangingSignVars = hangingSignIds.map((id) => toJavaId(id) + "Block").join(", ");
+    blockLines.push("		// Register BlockEntityType for hanging signs (vanilla type doesn't include mod blocks)");
+    blockLines.push(`		HANGING_SIGN_BLOCK_ENTITY = Registry.register(Registries.BLOCK_ENTITY_TYPE, Identifier.of(MOD_ID, "hanging_sign_block_entity"), FabricBlockEntityTypeBuilder.create(ModHangingSignBlockEntity::new, ${hangingSignVars}).build());`);
+    blockLines.push("");
+  }
   for (const block of expanded.blocks) {
     const varName = toJavaId(block.id) + "Block";
-    const woodReg = woodIds.length > 0 ? woodBlockRegistrationJava(block.id, woodIds) : null;
-    if (woodReg) {
-      blockLines.push(`		${woodReg.line}`);
+    const isHangingSign = hangingSignIds.includes(block.id);
+    if (isHangingSign) {
+      blockLines.push(`		Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), ${varName});`);
     } else {
-      const settings = defaultBlockSettings();
-      blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
+      const woodReg = woodIds.length > 0 ? woodBlockRegistrationJava(block.id, woodIds) : null;
+      if (woodReg) {
+        blockLines.push(`		${woodReg.line}`);
+      } else {
+        const settings = defaultBlockSettings();
+        blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
+      }
     }
     blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
   }
@@ -213,6 +253,7 @@ function modMainJava(
     "",
     "import net.fabricmc.api.ModInitializer;",
     "import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;",
+    "import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;",
     "import net.fabricmc.fabric.api.registry.StrippableBlockRegistry;",
     "import net.minecraft.block.AbstractBlock;",
     "import net.minecraft.block.Block;",
@@ -229,6 +270,7 @@ function modMainJava(
     "import net.minecraft.block.TrapdoorBlock;",
     "import net.minecraft.block.WoodType;",
     "import net.minecraft.block.Blocks;",
+    "import net.minecraft.block.entity.BlockEntityType;",
     "import net.minecraft.state.property.Properties;",
     "import net.minecraft.item.BlockItem;",
     "import net.minecraft.item.Item;",
@@ -265,11 +307,19 @@ function modMainJava(
         ]
       : [];
 
+  const hangingSignField =
+    hasHangingSigns
+      ? [
+          "	public static BlockEntityType<ModHangingSignBlockEntity> HANGING_SIGN_BLOCK_ENTITY;",
+          "",
+        ]
+      : [];
+
   const body = [
     "public class " + className + " implements ModInitializer {",
     "	public static final String MOD_ID = \"" + modId + "\";",
     "	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);",
-    "",
+    ...hangingSignField,
     "	@Override",
     "	public void onInitialize() {",
     ...initBody,
@@ -279,6 +329,66 @@ function modMainJava(
   ];
 
   return imports.join("\n") + "\n" + body.join("\n") + "\n";
+}
+
+function modHangingSignBlockEntityJava(javaPackage: string, mainClassName: string): string {
+  return `package net.themodgenerator.${javaPackage};
+
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.block.entity.HangingSignBlockEntity;
+import net.minecraft.util.math.BlockPos;
+
+/** Block entity for mod hanging signs; uses mod BlockEntityType so placement does not crash. */
+public class ModHangingSignBlockEntity extends HangingSignBlockEntity {
+	public ModHangingSignBlockEntity(BlockPos pos, BlockState state) {
+		super(${mainClassName}.HANGING_SIGN_BLOCK_ENTITY, pos, state);
+	}
+}
+`;
+}
+
+function modHangingSignBlockJava(javaPackage: string): string {
+  return `package net.themodgenerator.${javaPackage};
+
+import net.minecraft.block.AbstractBlock;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.HangingSignBlock;
+import net.minecraft.block.WoodType;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.util.math.BlockPos;
+import org.jetbrains.annotations.Nullable;
+
+/** Hanging sign block that creates ModHangingSignBlockEntity; vanilla BlockEntityType doesn't include mod blocks. */
+public class ModHangingSignBlock extends HangingSignBlock {
+	public ModHangingSignBlock(WoodType woodType, AbstractBlock.Settings settings) {
+		super(woodType, settings);
+	}
+
+	@Nullable
+	@Override
+	public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
+		return new ModHangingSignBlockEntity(pos, state);
+	}
+}
+`;
+}
+
+function modClientJava(javaPackage: string, mainClassName: string): string {
+  return `package net.themodgenerator.${javaPackage};
+
+import net.fabricmc.api.ClientModInitializer;
+import net.minecraft.client.render.block.entity.BlockEntityRenderers;
+import net.minecraft.client.render.block.entity.HangingSignBlockEntityRenderer;
+
+/** Client-side: register block entity renderer for mod hanging signs. */
+public class ${mainClassName}Client implements ClientModInitializer {
+	@Override
+	public void onInitializeClient() {
+		BlockEntityRenderers.register(${mainClassName}.HANGING_SIGN_BLOCK_ENTITY, HangingSignBlockEntityRenderer::new);
+	}
+}
+`;
 }
 
 function mixinsJson(modId: string): string {
@@ -314,13 +424,14 @@ export function fabricScaffoldFiles(
   const className = toClassName(modId) + "Mod";
   const itemPlans = options?.itemPlans;
 
+  const hasHangingSigns = hangingSignBlockIds(expanded).length > 0;
   const files: MaterializedFile[] = [
-    { path: "build.gradle", contents: buildGradle(modId) },
+    { path: "build.gradle", contents: buildGradle(modId, hasHangingSigns) },
     { path: "gradle.properties", contents: gradleProperties() },
     { path: "settings.gradle", contents: settingsGradle(modId) },
     {
       path: "src/main/resources/fabric.mod.json",
-      contents: fabricModJson(modId, modName, javaPackage, className),
+      contents: fabricModJson(modId, modName, javaPackage, className, hasHangingSigns),
     },
     {
       path: `src/main/java/net/themodgenerator/${javaPackage}/${className}.java`,
@@ -331,5 +442,19 @@ export function fabricScaffoldFiles(
       contents: mixinsJson(modId),
     },
   ];
+  if (hasHangingSigns) {
+    files.push({
+      path: `src/main/java/net/themodgenerator/${javaPackage}/ModHangingSignBlockEntity.java`,
+      contents: modHangingSignBlockEntityJava(javaPackage, className),
+    });
+    files.push({
+      path: `src/main/java/net/themodgenerator/${javaPackage}/ModHangingSignBlock.java`,
+      contents: modHangingSignBlockJava(javaPackage),
+    });
+    files.push({
+      path: `src/client/java/net/themodgenerator/${javaPackage}/${className}Client.java`,
+      contents: modClientJava(javaPackage, className),
+    });
+  }
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }

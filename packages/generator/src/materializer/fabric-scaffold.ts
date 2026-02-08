@@ -349,13 +349,32 @@ function modHangingSignBlockEntityJava(javaPackage: string, mainClassName: strin
 
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.block.entity.HangingSignBlockEntity;
+import net.minecraft.block.entity.SignBlockEntity;
+import net.minecraft.sound.SoundEvent;
+import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.math.BlockPos;
 
-/** Block entity for mod hanging signs; uses mod BlockEntityType so placement does not crash. */
-public class ModHangingSignBlockEntity extends HangingSignBlockEntity {
+/** Block entity for mod hanging signs; uses mod BlockEntityType so placement does not crash.
+ * Extends SignBlockEntity (not HangingSignBlockEntity) because HangingSignBlockEntity only has
+ * (BlockPos, BlockState) ctor and cannot take a custom BlockEntityType in 1.21.1. */
+public class ModHangingSignBlockEntity extends SignBlockEntity {
 	public ModHangingSignBlockEntity(BlockPos pos, BlockState state) {
 		super(${mainClassName}.HANGING_SIGN_BLOCK_ENTITY, pos, state);
+	}
+
+	@Override
+	public int getTextLineHeight() {
+		return 10;
+	}
+
+	@Override
+	public int getMaxTextWidth() {
+		return 60;
+	}
+
+	@Override
+	public SoundEvent getInteractionFailSound() {
+		return SoundEvents.BLOCK_OAK_WOOD_HANGING_SIGN_HIT.value();
 	}
 }
 `;

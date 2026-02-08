@@ -456,9 +456,7 @@ function mixinsJson(modId: string): string {
   "package": "net.themodgenerator.${javaPackage}.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
-  "client": [
-    "ScreenCharTypedMixin"
-  ],
+  "client": [],
   "injectors": {
     "defaultRequire": 1
   }
@@ -520,7 +518,7 @@ export function fabricScaffoldFiles(
   const itemPlans = options?.itemPlans;
 
   const hasHangingSigns = hangingSignBlockIds(expanded).length > 0;
-  const hasClientSources = true; // mixin for charTyped StackOverflow fix when opening inventory
+  const hasClientSources = hasHangingSigns;
   const files: MaterializedFile[] = [
     { path: "build.gradle", contents: buildGradle(modId, hasClientSources) },
     { path: "gradle.properties", contents: gradleProperties() },
@@ -536,10 +534,6 @@ export function fabricScaffoldFiles(
     {
       path: `src/main/resources/${modId}.mixins.json`,
       contents: mixinsJson(modId),
-    },
-    {
-      path: `src/client/java/net/themodgenerator/${javaPackage}/mixin/ScreenCharTypedMixin.java`,
-      contents: screenCharTypedMixinJava(javaPackage),
     },
   ];
   if (hasHangingSigns) {

@@ -450,14 +450,51 @@ public class ${mainClassName}Client implements ClientModInitializer {
 }
 
 function mixinsJson(modId: string): string {
+  const javaPackage = modId.replace(/-/g, "_");
   return `{
   "required": true,
-  "package": "net.themodgenerator.${modId.replace(/-/g, "_")}.mixin",
+  "package": "net.themodgenerator.${javaPackage}.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
+  "client": [
+    "ScreenCharTypedMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
+}
+`;
+}
+
+/** Mixin to prevent charTyped StackOverflow when opening inventory (Fabric API / Screen event recursion in 1.21.1). */
+function screenCharTypedMixinJava(javaPackage: string): string {
+  return `package net.themodgenerator.${javaPackage}.mixin;
+
+import net.minecraft.client.gui.screen.Screen;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(Screen.class)
+abstract class ScreenCharTypedMixin {
+	@Unique
+	private static boolean themodgenerator$inCharTyped;
+
+	@Inject(method = "charTyped(CI)Z", at = @At("HEAD"), cancellable = true)
+	private void themodgenerator$guardCharTypedHead(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+		if (themodgenerator$inCharTyped) {
+			cir.setReturnValue(false);
+			return;
+		}
+		themodgenerator$inCharTyped = true;
+	}
+
+	@Inject(method = "charTyped(CI)Z", at = @At("TAIL"))
+	private void themodgenerator$guardCharTypedTail(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+		themodgenerator$inCharTyped = false;
+	}
 }
 `;
 }
@@ -483,8 +520,9 @@ export function fabricScaffoldFiles(
   const itemPlans = options?.itemPlans;
 
   const hasHangingSigns = hangingSignBlockIds(expanded).length > 0;
+  const hasClientSources = true; // mixin for charTyped StackOverflow fix when opening inventory
   const files: MaterializedFile[] = [
-    { path: "build.gradle", contents: buildGradle(modId, hasHangingSigns) },
+    { path: "build.gradle", contents: buildGradle(modId, hasClientSources) },
     { path: "gradle.properties", contents: gradleProperties() },
     { path: "settings.gradle", contents: settingsGradle(modId) },
     {
@@ -498,6 +536,10 @@ export function fabricScaffoldFiles(
     {
       path: `src/main/resources/${modId}.mixins.json`,
       contents: mixinsJson(modId),
+    },
+    {
+      path: `src/client/java/net/themodgenerator/${javaPackage}/mixin/ScreenCharTypedMixin.java`,
+      contents: screenCharTypedMixinJava(javaPackage),
     },
   ];
   if (hasHangingSigns) {

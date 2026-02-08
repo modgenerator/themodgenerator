@@ -374,7 +374,7 @@ public class ModHangingSignBlockEntity extends SignBlockEntity {
 
 	@Override
 	public SoundEvent getInteractionFailSound() {
-		return SoundEvents.BLOCK_HANGING_SIGN_HIT.value();
+		return SoundEvents.BLOCK_HANGING_SIGN_HIT;
 	}
 }
 `;

@@ -172,6 +172,12 @@ async function listZipEntriesWithSizes(zipPath: string): Promise<Map<string, num
  * Throws on any validation failure. Error message contains only first failing path + reason.
  */
 
+/** Forbidden patterns: Screen/charTyped mixins cause StackOverflow in inventory search. */
+const FORBIDDEN_JAR_PATTERNS = [
+  "ScreenCharTypedMixin",
+  "charTyped",
+] as const;
+
 export async function validateJarGate(
   jarPath: string,
   modId: string,
@@ -180,6 +186,33 @@ export async function validateJarGate(
 ): Promise<void> {
   const entriesWithSizes = await listZipEntriesWithSizes(jarPath);
   const entries = [...entriesWithSizes.keys()];
+
+  // 0) Fail if any Screen/charTyped mixin is present (StackOverflow in inventory search)
+  for (const entry of entries) {
+    const normalized = entry.replace(/\\/g, "/");
+    for (const pat of FORBIDDEN_JAR_PATTERNS) {
+      if (normalized.includes(pat)) {
+        throw new Error(
+          `Forbidden: Screen/charTyped mixin present in jar. Entry: ${entry} (matched "${pat}")`
+        );
+      }
+    }
+  }
+  const mixinsJsonPath = `${modId}.mixins.json`;
+  if (entries.includes(mixinsJsonPath)) {
+    const text = await readZipEntry(jarPath, mixinsJsonPath);
+    let parsed: { client?: string[] } | undefined;
+    try {
+      parsed = JSON.parse(text) as { client?: string[] };
+    } catch {
+      parsed = undefined;
+    }
+    if (parsed?.client && Array.isArray(parsed.client) && parsed.client.length > 0) {
+      throw new Error(
+        `Forbidden: Screen/charTyped mixin present in jar. Client mixins must be empty; found: ${(parsed.client as string[]).join(", ")}`
+      );
+    }
+  }
 
   // 1) Fail if any recipe is under recipes/ (plural)
   const recipesPlural = entries.filter(

@@ -186,7 +186,8 @@ function modMainJava(
   javaPackage: string,
   className: string,
   expanded: ExpandedSpecTier1,
-  itemPlans?: ExecutionPlan[]
+  itemPlans?: ExecutionPlan[],
+  buildStamp?: string
 ): string {
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
   const hangingSignIds = hangingSignBlockIds(expanded);
@@ -304,6 +305,9 @@ function modMainJava(
   }
   if (hasBlocks) {
     initBody.push(creativeTabBlocks(expanded.blocks.map((b) => b.id)));
+  }
+  if (buildStamp) {
+    initBody.push('		LOGGER.info("GENERATED MOD BUILD STAMP: " + "' + escapeJava(buildStamp) + '");');
   }
   initBody.push("		LOGGER.info(\"" + escapeJava(modName) + " initialized.\");");
 
@@ -467,6 +471,8 @@ function mixinsJson(modId: string): string {
 export interface FabricScaffoldOptions {
   /** When provided, custom item classes (e.g. lightning wand) are registered per plan. */
   itemPlans?: ExecutionPlan[];
+  /** Build stamp logged at mod init for jar verification (e.g. git sha + timestamp). */
+  buildStamp?: string;
 }
 
 /**
@@ -483,6 +489,7 @@ export function fabricScaffoldFiles(
   const javaPackage = modId.replace(/-/g, "_");
   const className = toClassName(modId) + "Mod";
   const itemPlans = options?.itemPlans;
+  const buildStamp = options?.buildStamp;
 
   const hasHangingSigns = hangingSignBlockIds(expanded).length > 0;
   const hasClientSources = hasHangingSigns;
@@ -496,7 +503,7 @@ export function fabricScaffoldFiles(
     },
     {
       path: `src/main/java/net/themodgenerator/${javaPackage}/${className}.java`,
-      contents: modMainJava(modId, modName, javaPackage, className, expanded, itemPlans),
+      contents: modMainJava(modId, modName, javaPackage, className, expanded, itemPlans, buildStamp),
     },
     {
       path: `src/main/resources/${modId}.mixins.json`,

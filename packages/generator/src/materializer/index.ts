@@ -40,6 +40,10 @@ import { enrichTextureFilesWithVisualMetadata } from "./visual-enrichment.js";
 import { calculateCredits } from "../execution-plan.js";
 import { creditsToVisualLevel } from "../visual-levels.js";
 
+export interface MaterializeOptions {
+  buildStamp?: string;
+}
+
 /**
  * Tier 1 Fabric materializer: expanded spec + asset keys → MaterializedFile[].
  * Stable ordering: scaffold first (sorted by path), then asset-derived files (sorted).
@@ -47,9 +51,10 @@ import { creditsToVisualLevel } from "../visual-levels.js";
  */
 export function materializeTier1(
   expanded: ExpandedSpecTier1,
-  assets: AssetKey[]
+  assets: AssetKey[],
+  options?: MaterializeOptions
 ): MaterializedFile[] {
-  const scaffold = fabricScaffoldFiles(expanded);
+  const scaffold = fabricScaffoldFiles(expanded, { buildStamp: options?.buildStamp });
   const assetFiles = assetKeysToFiles(expanded, assets);
   const recipeFiles = recipeDataFiles(expanded);
   const woodTags = woodTagDataFiles(expanded);
@@ -67,9 +72,13 @@ export function materializeTier1(
 export function materializeTier1WithPlans(
   expanded: ExpandedSpecTier1,
   assets: AssetKey[],
-  itemPlans: ExecutionPlan[]
+  itemPlans: ExecutionPlan[],
+  options?: MaterializeOptions
 ): MaterializedFile[] {
-  const scaffold = fabricScaffoldFiles(expanded, { itemPlans });
+  const scaffold = fabricScaffoldFiles(expanded, {
+    itemPlans,
+    buildStamp: options?.buildStamp,
+  });
   let assetFiles = assetKeysToFiles(expanded, assets);
   const totalCredits = itemPlans.reduce((sum, p) => sum + calculateCredits(p), 0);
   const visualLevel = creditsToVisualLevel(totalCredits);

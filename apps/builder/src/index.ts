@@ -535,10 +535,12 @@ async function main(): Promise<void> {
         console.log("[BUILDER] explanation:", scopeResult.explanation);
       }
       console.log("[BUILDER] --- End build explanation ---");
+      const buildStamp = `${process.env.GITHUB_SHA ?? process.env.JOB_ID ?? "local"}-${Date.now()}`;
+      const materializeOpts = { buildStamp };
       const files =
         expanded.items.length > 0 && itemPlans.length > 0
-          ? materializeTier1WithPlans(expanded, assets, itemPlans)
-          : materializeTier1(expanded, assets);
+          ? materializeTier1WithPlans(expanded, assets, itemPlans, materializeOpts)
+          : materializeTier1(expanded, assets, materializeOpts);
       await writeMaterializedFiles(files, workDir, {
         mcVersion: specToUse.minecraftVersion ?? "1.21.1",
       });

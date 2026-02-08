@@ -274,8 +274,9 @@ export async function validateJarGate(
   // 7) Sign/hanging_sign: models, block textures, and entity textures must exist
   const assetsPrefix = `assets/${modId}/`;
   for (const blockId of blockIds) {
-    if (blockId.endsWith("_hanging_sign")) {
-      const woodId = blockId.replace(/_hanging_sign$/, "");
+    if (blockId.endsWith("_hanging_sign") || blockId.endsWith("_wall_hanging_sign")) {
+      const woodId = blockId.replace(/_wall_hanging_sign$/, "").replace(/_hanging_sign$/, "");
+      const ceilingId = `${woodId}_hanging_sign`;
       const blockstatePath = `${assetsPrefix}blockstates/${blockId}.json`;
       if (!entries.includes(blockstatePath)) {
         throw new Error(`JAR-GATE: Hanging sign ${blockId} missing blockstate at ${blockstatePath}`);
@@ -284,9 +285,9 @@ export async function validateJarGate(
       if (!entries.includes(modelPath)) {
         throw new Error(`JAR-GATE: Hanging sign ${blockId} missing model at ${modelPath}`);
       }
-      const blockTexPath = `${assetsPrefix}textures/block/${blockId}.png`;
+      const blockTexPath = `${assetsPrefix}textures/block/${ceilingId}.png`;
       if (!entries.includes(blockTexPath)) {
-        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing block texture at ${blockTexPath}`);
+        throw new Error(`JAR-GATE: Hanging sign ${blockId} missing block texture at ${blockTexPath} (ceiling texture)`);
       }
       const entityTexHanging = `${assetsPrefix}textures/entity/signs/hanging/${woodId}.png`;
       const entityTexSigns = `${assetsPrefix}textures/entity/signs/${woodId}.png`;

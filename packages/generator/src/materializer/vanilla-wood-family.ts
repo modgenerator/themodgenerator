@@ -26,6 +26,7 @@ export const WOOD_BLOCK_SUFFIXES = [
   "_button",
   "_sign",
   "_hanging_sign",
+  "_wall_hanging_sign",
 ] as const;
 
 /** Log/wood only (PillarBlock for StrippableBlockRegistry). */
@@ -46,7 +47,8 @@ export type WoodBlockClass =
   | "ButtonBlock"
   | "PressurePlateBlock"
   | "SignBlock"
-  | "HangingSignBlock";
+  | "HangingSignBlock"
+  | "WallHangingSignBlock";
 
 export interface WoodBlockSpec {
   suffix: WoodBlockSuffix;
@@ -76,6 +78,7 @@ export const WOOD_BLOCK_SPECS: WoodBlockSpec[] = [
   { suffix: "_button", blockClass: "ButtonBlock", javaCtor: "new ButtonBlock(BlockSetType.OAK, 30, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_BUTTON", needsMultipartBlockstate: false },
   { suffix: "_sign", blockClass: "Block", javaCtor: "new Block(PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_SIGN", needsMultipartBlockstate: false },
   { suffix: "_hanging_sign", blockClass: "HangingSignBlock", javaCtor: "new HangingSignBlock(WoodType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_HANGING_SIGN", needsMultipartBlockstate: false },
+  { suffix: "_wall_hanging_sign", blockClass: "WallHangingSignBlock", javaCtor: "new WallHangingSignBlock(WoodType.OAK, PLACEHOLDER_SETTINGS)", vanillaBlock: "Blocks.OAK_WALL_HANGING_SIGN", needsMultipartBlockstate: false },
 ];
 
 const SPEC_BY_SUFFIX = new Map(WOOD_BLOCK_SPECS.map((s) => [s.suffix, s]));
@@ -119,11 +122,13 @@ export function woodBlockRegistrationJava(blockId: string, woodIds: string[]): {
   };
 }
 
-/** Block IDs that are hanging signs (need custom BlockEntityType). */
+/** Block IDs that are hanging signs (ceiling + wall, need custom BlockEntityType). */
 export function hangingSignBlockIds(expanded: ExpandedSpecTier1): string[] {
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
   return expanded.blocks
-    .filter((b) => woodIds.some((w) => b.id === w + "_hanging_sign"))
+    .filter((b) =>
+      woodIds.some((w) => b.id === w + "_hanging_sign" || b.id === w + "_wall_hanging_sign")
+    )
     .map((b) => b.id);
 }
 

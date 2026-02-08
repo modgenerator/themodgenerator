@@ -48,6 +48,8 @@ import {
   signModel,
   hangingSignBlockstateJson,
   hangingSignModel,
+  wallHangingSignBlockstateJson,
+  wallHangingSignModel,
 } from "./wood-blockstates.js";
 
 const ITEM_PREFIX = "item/";
@@ -154,8 +156,8 @@ function itemModelJsonWithBlockTexture(modId: string, blockId: string, textureId
 /** For wood blocks that use planks texture (button, pressure_plate, fence_gate, slab, stairs, sign, hanging_sign). */
 function planksTextureId(blockId: string): string | null {
   // Explicit special-case: hanging_sign and sign MUST use planks (never _hanging_planks)
-  if (blockId.endsWith("_hanging_sign")) {
-    return blockId.replace(/_hanging_sign$/, "_planks");
+  if (blockId.endsWith("_hanging_sign") || blockId.endsWith("_wall_hanging_sign")) {
+    return blockId.replace(/_wall_hanging_sign$/, "_hanging_sign").replace(/_hanging_sign$/, "_planks");
   }
   if (blockId.endsWith("_sign")) {
     return blockId.replace(/_sign$/, "_planks");
@@ -392,6 +394,7 @@ export function assetKeysToFiles(
     const isStairs = woodTypes.some((w) => id === w.id + "_stairs");
     const isSign = woodTypes.some((w) => id === w.id + "_sign");
     const isHangingSign = woodTypes.some((w) => id === w.id + "_hanging_sign");
+    const isWallHangingSign = woodTypes.some((w) => id === w.id + "_wall_hanging_sign");
 
     if (isDoor) {
       files.push({
@@ -560,6 +563,15 @@ export function assetKeysToFiles(
       files.push({
         path: `${baseAssets}/blockstates/${id}.json`,
         contents: hangingSignBlockstateJson(modId, id),
+      });
+    } else if (isWallHangingSign) {
+      files.push({
+        path: `${baseAssets}/models/block/${id}.json`,
+        contents: wallHangingSignModel(modId, id),
+      });
+      files.push({
+        path: `${baseAssets}/blockstates/${id}.json`,
+        contents: wallHangingSignBlockstateJson(modId, id),
       });
     } else {
       files.push({

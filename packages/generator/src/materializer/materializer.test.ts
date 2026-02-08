@@ -506,7 +506,8 @@ describe("materializer invariants", () => {
         f.path.endsWith(".java") &&
         !f.path.includes("StrippablePlanks") &&
         !f.path.includes("Client") &&
-        !f.path.includes("ModHangingSignBlock")
+        !f.path.includes("ModHangingSignBlock") &&
+        !f.path.includes("ModWallHangingSignBlock")
     );
     assert.ok(javaFile, "must generate Mod main Java");
     const contents = javaFile!.contents;
@@ -559,10 +560,12 @@ describe("materializer invariants", () => {
     const fenceGateRegLine = contents.split("\n").find((l) => l.includes('"maple_fence_gate"') && l.includes("Registry.register(Registries.BLOCK"));
     assert.ok(fenceGateRegLine?.includes("WoodType.OAK") && fenceGateRegLine?.includes("FenceGateBlock"), "maple_fence_gate must be FenceGateBlock(WoodType.OAK, settings)");
     assert.ok(contents.includes("ModHangingSignBlock"), "maple_hanging_sign must use ModHangingSignBlock (custom BE type)");
+    assert.ok(contents.includes("ModWallHangingSignBlock"), "maple_wall_hanging_sign must use ModWallHangingSignBlock");
     assert.ok(
       contents.includes("ModHangingSignBlock(WoodType.OAK,"),
       "ModHangingSignBlock must use (WoodType.OAK, settings) order - MC 1.21.1 expects WoodType first"
     );
+    assert.ok(contents.includes("HangingSignItem"), "maple_hanging_sign item must use HangingSignItem (ceiling+wall)");
     assert.ok(contents.includes("HANGING_SIGN_BLOCK_ENTITY"), "must register BlockEntityType for hanging signs");
   });
 

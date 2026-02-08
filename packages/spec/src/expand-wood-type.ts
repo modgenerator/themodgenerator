@@ -31,6 +31,7 @@ const WOOD_FAMILY_MEMBERS: ReadonlyArray<{
   { idSuffix: "_button", displaySuffix: " Button", kind: "both", material: "wood" },
   { idSuffix: "_sign", displaySuffix: " Sign", kind: "both", material: "wood" },
   { idSuffix: "_hanging_sign", displaySuffix: " Hanging Sign", kind: "both", material: "wood" },
+  { idSuffix: "_wall_hanging_sign", displaySuffix: " Wall Hanging Sign", kind: "block", material: "wood" },
   // Boat/chest_boat omitted until entity+renderer implemented
 ];
 

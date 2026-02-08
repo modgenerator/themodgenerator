@@ -115,6 +115,7 @@ describe("expandSpecTier1", () => {
       "maple_pressure_plate",
       "maple_sign",
       "maple_hanging_sign",
+      "maple_wall_hanging_sign",
     ];
     for (const id of expected) {
       assert.ok(allIds.includes(id), `expansion must include ${id}`);

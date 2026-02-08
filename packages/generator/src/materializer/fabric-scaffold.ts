@@ -188,17 +188,18 @@ function modMainJava(
   expanded: ExpandedSpecTier1,
   itemPlans?: ExecutionPlan[]
 ): string {
+  const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
+  const hangingSignIds = hangingSignBlockIds(expanded);
+  const hasHangingSigns = hangingSignIds.length > 0;
+  const hangingSignItemIds = new Set(woodIds.map((w) => w + "_hanging_sign"));
   const itemRegistrations = expanded.items
+    .filter((item) => !(hasHangingSigns && hangingSignItemIds.has(item.id)))
     .map((item, i) => {
       const plan = itemPlans?.[i];
       const itemClassName = getItemClassNameForRegistration(item.id, plan);
       return `		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${item.id}"), new ${itemClassName}(new Item.Settings()));`;
     })
     .join("\n");
-  const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);
-  const hangingSignIds = hangingSignBlockIds(expanded);
-  const hasHangingSigns = hangingSignIds.length > 0;
-
   const blockLines: string[] = [];
   if (hasHangingSigns) {
     blockLines.push("		// Create hanging sign blocks first (needed for BlockEntityType registration)");
@@ -206,7 +207,9 @@ function modMainJava(
       const varName = toJavaId(blockId) + "Block";
       const spec = getWoodBlockSpec(blockId, woodIds);
       const settings = spec ? `AbstractBlock.Settings.copy(${spec.vanillaBlock})` : "AbstractBlock.Settings.create()";
-      blockLines.push(`		ModHangingSignBlock ${varName} = new ModHangingSignBlock(WoodType.OAK, ${settings});`);
+      const isWall = blockId.endsWith("_wall_hanging_sign");
+      const blockClass = isWall ? "ModWallHangingSignBlock" : "ModHangingSignBlock";
+      blockLines.push(`		${blockClass} ${varName} = new ${blockClass}(WoodType.OAK, ${settings});`);
     }
     const hangingSignVars = hangingSignIds.map((id) => toJavaId(id) + "Block").join(", ");
     blockLines.push("		// Register BlockEntityType for hanging signs (vanilla type doesn't include mod blocks)");
@@ -218,6 +221,14 @@ function modMainJava(
     const isHangingSign = hangingSignIds.includes(block.id);
     if (isHangingSign) {
       blockLines.push(`		Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), ${varName});`);
+      const isCeiling = block.id.endsWith("_hanging_sign") && !block.id.endsWith("_wall_hanging_sign");
+      if (isCeiling) {
+        const wallId = block.id.replace(/_hanging_sign$/, "_wall_hanging_sign");
+        const wallVar = toJavaId(wallId) + "Block";
+        blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new HangingSignItem(${varName}, ${wallVar}, new Item.Settings()));`);
+      } else {
+        blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
+      }
     } else {
       const woodReg = woodIds.length > 0 ? woodBlockRegistrationJava(block.id, woodIds) : null;
       if (woodReg) {
@@ -226,8 +237,8 @@ function modMainJava(
         const settings = defaultBlockSettings();
         blockLines.push(`		Block ${varName} = Registry.register(Registries.BLOCK, Identifier.of(MOD_ID, "${block.id}"), new Block(${settings}));`);
       }
+      blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
     }
-    blockLines.push(`		Registry.register(Registries.ITEM, Identifier.of(MOD_ID, "${block.id}"), new BlockItem(${varName}, new Item.Settings()));`);
   }
   const blockRegistrations = blockLines.join("\n");
 
@@ -263,6 +274,7 @@ function modMainJava(
     "import net.minecraft.block.FenceBlock;",
     "import net.minecraft.block.FenceGateBlock;",
     "import net.minecraft.block.HangingSignBlock;",
+    "import net.minecraft.block.WallHangingSignBlock;",
     "import net.minecraft.block.PillarBlock;",
     "import net.minecraft.block.PressurePlateBlock;",
     "import net.minecraft.block.SlabBlock;",
@@ -273,6 +285,7 @@ function modMainJava(
     "import net.minecraft.block.entity.BlockEntityType;",
     "import net.minecraft.state.property.Properties;",
     "import net.minecraft.item.BlockItem;",
+    "import net.minecraft.item.HangingSignItem;",
     "import net.minecraft.item.Item;",
     "import net.minecraft.item.ItemGroups;",
     "import net.minecraft.registry.Registries;",
@@ -359,9 +372,35 @@ import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.util.math.BlockPos;
 import org.jetbrains.annotations.Nullable;
 
-/** Hanging sign block that creates ModHangingSignBlockEntity; vanilla BlockEntityType doesn't include mod blocks. */
+/** Hanging sign block (ceiling) that creates ModHangingSignBlockEntity; vanilla BlockEntityType doesn't include mod blocks. */
 public class ModHangingSignBlock extends HangingSignBlock {
 	public ModHangingSignBlock(WoodType woodType, AbstractBlock.Settings settings) {
+		super(woodType, settings);
+	}
+
+	@Nullable
+	@Override
+	public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
+		return new ModHangingSignBlockEntity(pos, state);
+	}
+}
+`;
+}
+
+function modWallHangingSignBlockJava(javaPackage: string): string {
+  return `package net.themodgenerator.${javaPackage};
+
+import net.minecraft.block.AbstractBlock;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.WallHangingSignBlock;
+import net.minecraft.block.WoodType;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.util.math.BlockPos;
+import org.jetbrains.annotations.Nullable;
+
+/** Wall hanging sign block that creates ModHangingSignBlockEntity; vanilla BlockEntityType doesn't include mod blocks. */
+public class ModWallHangingSignBlock extends WallHangingSignBlock {
+	public ModWallHangingSignBlock(WoodType woodType, AbstractBlock.Settings settings) {
 		super(woodType, settings);
 	}
 
@@ -450,6 +489,10 @@ export function fabricScaffoldFiles(
     files.push({
       path: `src/main/java/net/themodgenerator/${javaPackage}/ModHangingSignBlock.java`,
       contents: modHangingSignBlockJava(javaPackage),
+    });
+    files.push({
+      path: `src/main/java/net/themodgenerator/${javaPackage}/ModWallHangingSignBlock.java`,
+      contents: modWallHangingSignBlockJava(javaPackage),
     });
     files.push({
       path: `src/client/java/net/themodgenerator/${javaPackage}/${className}Client.java`,

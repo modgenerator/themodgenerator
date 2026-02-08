@@ -28,6 +28,7 @@ const WOOD_SUFFIXES = [
   "_button",
   "_sign",
   "_hanging_sign",
+  "_wall_hanging_sign",
 ] as const;
 
 const LOG_SUFFIXES = ["_log", "_stripped_log", "_wood", "_stripped_wood"] as const;

@@ -459,6 +459,31 @@ export function hangingSignModel(modId: string, blockId: string): string {
   );
 }
 
+/** Wall hanging sign blockstate: facing north/south/east/west (vanilla-style). */
+export function wallHangingSignBlockstateJson(modId: string, blockId: string): string {
+  const modelBase = `${modId}:block/${blockId}`;
+  const variants: Record<string, { model: string; y?: number }> = {};
+  for (const facing of ["north", "south", "east", "west"] as const) {
+    const y = { north: 0, south: 180, east: 90, west: 270 }[facing];
+    variants[facing] = { model: modelBase, y };
+  }
+  return JSON.stringify({ variants }, null, 2);
+}
+
+/** Wall hanging sign model - uses template_wall_hanging_sign, same texture as ceiling. */
+export function wallHangingSignModel(modId: string, blockId: string): string {
+  const ceilingId = blockId.replace(/_wall_hanging_sign$/, "_hanging_sign");
+  const tex = `${modId}:block/${ceilingId}`;
+  return JSON.stringify(
+    {
+      parent: "minecraft:block/template_wall_hanging_sign",
+      textures: { particle: tex, texture: tex },
+    },
+    null,
+    2
+  );
+}
+
 /** Check if block needs multipart blockstate (door or trapdoor). */
 export function needsMultipartBlockstate(blockId: string, expanded: ExpandedSpecTier1): boolean {
   const woodIds = (expanded.spec.woodTypes ?? []).map((w) => w.id);

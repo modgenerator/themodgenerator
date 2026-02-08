@@ -5,6 +5,9 @@
  * Items and blocks are added to vanilla creative tabs so they appear in-game.
  */
 
+/** TEMPORARY: Set true to isolate charTyped StackOverflow — disables all client entrypoints and BlockEntityRenderer registration. Flip to false once renderer is confirmed/fixed. */
+const DISABLE_CLIENT_ENTRYPOINT = true;
+
 import type { ExpandedSpecTier1 } from "@themodgenerator/spec";
 import type { MaterializedFile } from "./types.js";
 import type { ExecutionPlan } from "../execution-plan.js";
@@ -121,14 +124,15 @@ function fabricModJson(
   modName: string,
   javaPackage: string,
   className: string,
-  hasHangingSigns: boolean
+  hasClientEntrypoint: boolean
 ): string {
-  const clientEntrypoint = hasHangingSigns
-    ? `,
+  const clientEntrypoint =
+    !DISABLE_CLIENT_ENTRYPOINT && hasClientEntrypoint
+      ? `,
     "client": [
       "net.themodgenerator.${javaPackage}.${className}Client"
     ]`
-    : "";
+      : "";
   return `{
   "schemaVersion": 1,
   "id": "${modId}",
@@ -492,7 +496,7 @@ export function fabricScaffoldFiles(
   const buildStamp = options?.buildStamp;
 
   const hasHangingSigns = hangingSignBlockIds(expanded).length > 0;
-  const hasClientSources = hasHangingSigns;
+  const hasClientSources = !DISABLE_CLIENT_ENTRYPOINT && hasHangingSigns;
   const files: MaterializedFile[] = [
     { path: "build.gradle", contents: buildGradle(modId, hasClientSources) },
     { path: "gradle.properties", contents: gradleProperties() },
@@ -523,10 +527,12 @@ export function fabricScaffoldFiles(
       path: `src/main/java/net/themodgenerator/${javaPackage}/ModWallHangingSignBlock.java`,
       contents: modWallHangingSignBlockJava(javaPackage),
     });
-    files.push({
-      path: `src/client/java/net/themodgenerator/${javaPackage}/${className}Client.java`,
-      contents: modClientJava(javaPackage, className),
-    });
+    if (!DISABLE_CLIENT_ENTRYPOINT) {
+      files.push({
+        path: `src/client/java/net/themodgenerator/${javaPackage}/${className}Client.java`,
+        contents: modClientJava(javaPackage, className),
+      });
+    }
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }

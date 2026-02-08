@@ -464,39 +464,6 @@ function mixinsJson(modId: string): string {
 `;
 }
 
-/** Mixin to prevent charTyped StackOverflow when opening inventory (Fabric API / Screen event recursion in 1.21.1). */
-function screenCharTypedMixinJava(javaPackage: string): string {
-  return `package net.themodgenerator.${javaPackage}.mixin;
-
-import net.minecraft.client.gui.screen.Screen;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-
-@Mixin(Screen.class)
-abstract class ScreenCharTypedMixin {
-	@Unique
-	private static boolean themodgenerator$inCharTyped;
-
-	@Inject(method = "charTyped(CI)Z", at = @At("HEAD"), cancellable = true)
-	private void themodgenerator$guardCharTypedHead(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-		if (themodgenerator$inCharTyped) {
-			cir.setReturnValue(false);
-			return;
-		}
-		themodgenerator$inCharTyped = true;
-	}
-
-	@Inject(method = "charTyped(CI)Z", at = @At("TAIL"))
-	private void themodgenerator$guardCharTypedTail(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-		themodgenerator$inCharTyped = false;
-	}
-}
-`;
-}
-
 export interface FabricScaffoldOptions {
   /** When provided, custom item classes (e.g. lightning wand) are registered per plan. */
   itemPlans?: ExecutionPlan[];
